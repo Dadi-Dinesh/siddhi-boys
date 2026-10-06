@@ -71,7 +71,7 @@ export default function Reports() {
       </div>
 
       {status === 'loading' && (
-        <SkeletonBlocks label="Loading financial reports..." stats={6} rows={6} statsClassName="grid-cols-2 xl:grid-cols-3" />
+        <SkeletonBlocks label="Loading financial reports..." stats={7} rows={6} statsClassName="grid-cols-2 lg:grid-cols-4" />
       )}
 
       {status === 'error' && (
@@ -90,11 +90,16 @@ export default function Reports() {
         <div className={`space-y-6 transition-opacity ${updating ? 'opacity-60' : ''}`} aria-busy={updating || undefined}>
           {/* Overall summary. Collected/expenses/fines follow the chosen period; borrowed money and the
               available balance are always current (all time), the same numbers as the dashboard. */}
-          <dl className="grid grid-cols-2 gap-3 xl:grid-cols-3">
+          <dl className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <StatCard
+              label="Total expected"
+              value={formatRupees(report.totals.totalExpected)}
+              hint={`${formatRupees(report.totals.totalPending)} still unpaid`}
+            />
             <StatCard
               label="Total collected"
               value={formatRupees(report.totals.totalCollected)}
-              hint={`Paid contributions · ${formatRupees(report.totals.totalPending)} pending`}
+              hint="Accepted payments incl. fines"
               tone="text-success-700"
             />
             <StatCard label="Total expenses" value={formatRupees(report.totals.totalExpenses)} hint="Money spent" />
@@ -114,6 +119,7 @@ export default function Reports() {
               value={formatRupees(report.totals.currentBalance)}
               hint={allTime ? 'Collected − expenses − borrowed' : `Net for period: ${formatRupees(report.totals.net)}`}
               tone={report.totals.currentBalance < 0 ? 'text-danger-700' : 'text-success-700'}
+              className="col-span-2 lg:col-span-1"
             />
           </dl>
 

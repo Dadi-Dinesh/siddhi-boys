@@ -50,6 +50,7 @@ export default function App() {
             <Route path="borrowed" element={<Borrowed />} />
             <Route path="transactions" element={<Transactions />} />
             <Route path="reports" element={<Reports />} />
+            <Route path="group-activity" element={<GroupActivity />} />
             <Route path="members" element={<Members />} />
             <Route path="settings" element={<Settings />} />
             <Route path="*" element={<Navigate to="/admin" replace />} />

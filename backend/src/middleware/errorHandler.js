@@ -31,6 +31,10 @@ function errorHandler(err, req, res, next) {
   } else if (err.code === 'LIMIT_UNEXPECTED_FILE') {
     status = 400;
     message = 'Unexpected file upload field';
+  } else if (err.name === 'MulterError') {
+    // Any other upload problem (too many files, too many fields, ...)
+    status = 400;
+    message = 'Invalid file upload';
   } else if (err.status >= 400 && err.status < 500) {
     // Other request problems reported by Express (e.g. unsupported encoding)
     status = err.status;

@@ -2,6 +2,8 @@
 // stops the server with a clear message instead of failing later in a confusing way.
 // Secret values are never printed.
 
+const { isCloudinaryConfigured } = require('./cloudinary');
+
 const PLACEHOLDER_SECRETS = ['your_super_secret_jwt_key', 'secret', 'changeme', 'jwtsecret', 'development'];
 const MIN_SECRET_LENGTH = 32;
 
@@ -20,12 +22,9 @@ function checkEnvironment() {
   // In production the browser app's address must be set explicitly (used for CORS).
   if (isProduction && !process.env.CLIENT_URL) problems.push('CLIENT_URL is required in production.');
 
-  // Payment screenshots are stored on Cloudinary, so production needs all three values or CLOUDINARY_URL.
-  const hasCloudinaryUrl = Boolean(process.env.CLOUDINARY_URL);
-  const cloudinaryVars = ['CLOUDINARY_CLOUD_NAME', 'CLOUDINARY_API_KEY', 'CLOUDINARY_API_SECRET'];
-  const missingCloudinary = cloudinaryVars.filter((name) => !process.env[name]);
-  if (isProduction && !hasCloudinaryUrl && missingCloudinary.length) {
-    problems.push(`${missingCloudinary.join(', ')} ${missingCloudinary.length === 1 ? 'is' : 'are'} required in production.`);
+  // Payment screenshots and profile photos are stored on Cloudinary, so production needs it.
+  if (isProduction && !isCloudinaryConfigured()) {
+    problems.push('Cloudinary is required in production: set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET (or CLOUDINARY_URL).');
   }
 
   return problems;
@@ -34,9 +33,8 @@ function checkEnvironment() {
 // Settings that are optional during development but worth mentioning at startup.
 function environmentWarnings() {
   const warnings = [];
-  const hasCloudinaryUrl = Boolean(process.env.CLOUDINARY_URL);
-  if (!hasCloudinaryUrl && (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET)) {
-    warnings.push('Cloudinary is not configured: payment screenshot uploads will fail until CLOUDINARY_* values are set.');
+  if (!isCloudinaryConfigured()) {
+    warnings.push('Cloudinary is not configured: payment screenshot and profile photo uploads will fail until it is set.');
   }
   return warnings;
 }

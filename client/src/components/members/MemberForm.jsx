@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Camera, Trash2, UploadCloud } from 'lucide-react'
 import Alert from '../Alert'
 import Avatar from '../Avatar'
@@ -19,7 +19,7 @@ function validate(values, isEdit) {
   if (!values.email.trim()) errors.email = 'Email is required.'
   else if (!EMAIL_PATTERN.test(values.email.trim())) errors.email = 'Please enter a valid email address.'
 
-  const phoneStr = (values.phoneNumber || values.phone || '').trim()
+  const phoneStr = values.phoneNumber.trim()
   const cleanDigits = phoneStr.replace(/[\s-]/g, '')
   if (!phoneStr) {
     if (!isEdit) {
@@ -56,8 +56,7 @@ export default function MemberForm({ member, onSubmit, onCancel, saving, serverE
   const [values, setValues] = useState(() => ({
     name: member?.name ?? '',
     email: member?.email ?? '',
-    phoneNumber: member?.phoneNumber ?? member?.phone ?? '',
-    phone: member?.phoneNumber ?? member?.phone ?? '',
+    phoneNumber: member?.phoneNumber ?? '',
     password: '', // never pre-filled: the app never receives existing passwords
     isActive: member ? String(member.isActive) : 'true',
   }))
@@ -66,6 +65,12 @@ export default function MemberForm({ member, onSubmit, onCancel, saving, serverE
   const [photoPreview, setPhotoPreview] = useState(member?.profileImageUrl ?? null)
   const [removePhoto, setRemovePhoto] = useState(false)
   const [errors, setErrors] = useState({})
+
+  // Free the temporary preview of a newly chosen photo when it changes or the form closes.
+  useEffect(() => {
+    if (!photoFile) return undefined
+    return () => URL.revokeObjectURL(photoPreview)
+  }, [photoFile, photoPreview])
 
   const update = (field) => (e) => {
     setValues((v) => ({ ...v, [field]: e.target.value }))
@@ -76,7 +81,7 @@ export default function MemberForm({ member, onSubmit, onCancel, saving, serverE
     const file = e.target.files?.[0]
     if (!file) return
 
-    if (!file.type.startsWith('image/')) {
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
       setErrors((errs) => ({ ...errs, photo: 'Please select an image file (JPEG, PNG, or WebP).' }))
       return
     }
@@ -106,12 +111,10 @@ export default function MemberForm({ member, onSubmit, onCancel, saving, serverE
     setErrors(found)
     if (Object.keys(found).length > 0) return
 
-    const phoneValue = (values.phoneNumber || values.phone || '').trim()
     const fields = {
       name: values.name.trim(),
       email: values.email.trim().toLowerCase(),
-      phoneNumber: phoneValue,
-      phone: phoneValue,
+      phoneNumber: values.phoneNumber.trim(),
     }
 
     if (photoFile) {
@@ -154,7 +157,7 @@ export default function MemberForm({ member, onSubmit, onCancel, saving, serverE
         <div className="flex-1 text-center sm:text-left">
           <p className="text-sm font-semibold text-slate-800">Profile Photo</p>
           <p className="text-xs text-slate-500 mt-0.5">
-            JPG, PNG or WebP (max 5 MB). Uploads securely to Cloudinary.
+            Optional. JPG, PNG or WebP, up to 5 MB.
           </p>
 
           <input
@@ -202,7 +205,7 @@ export default function MemberForm({ member, onSubmit, onCancel, saving, serverE
       />
 
       <Input
-        label="Username / Email"
+        label="Email (used to log in)"
         type="email"
         inputMode="email"
         autoComplete="off"
@@ -210,6 +213,7 @@ export default function MemberForm({ member, onSubmit, onCancel, saving, serverE
         onChange={update('email')}
         error={errors.email || (emailTaken ? 'A member with this email already exists.' : undefined)}
         placeholder="rahul@example.com"
+        hint={values.email.includes('@') ? `Username: ${values.email.trim().toLowerCase().split('@')[0]}` : undefined}
       />
 
       <Input

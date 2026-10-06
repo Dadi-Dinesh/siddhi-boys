@@ -9,7 +9,6 @@ const publicUserSelect = {
   id: true,
   name: true,
   email: true,
-  phone: true,
   phoneNumber: true,
   profileImageUrl: true,
   role: true,
@@ -48,15 +47,13 @@ async function login(email, password) {
 
   const token = generateToken({ userId: user.id, role: user.role });
 
-  const phoneVal = user.phoneNumber || user.phone || null;
   return {
     user: {
       id: user.id,
       name: user.name,
       email: user.email,
-      phone: phoneVal,
-      phoneNumber: phoneVal,
-      profileImageUrl: user.profileImageUrl || null,
+      phoneNumber: user.phoneNumber,
+      profileImageUrl: user.profileImageUrl,
       role: user.role,
     },
     token,

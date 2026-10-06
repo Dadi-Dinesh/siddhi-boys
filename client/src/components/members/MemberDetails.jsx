@@ -31,7 +31,7 @@ export default function MemberDetails({ memberId }) {
     )
 
   const { member, summary, paymentHistory } = state.data
-  const phoneDisplay = member.phoneNumber || member.phone
+  const phoneDisplay = member.phoneNumber
 
   return (
     <div className="mt-1 space-y-5">

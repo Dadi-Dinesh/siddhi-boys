@@ -1,4 +1,4 @@
-import { ArrowLeftRight, BarChart3, HandCoins, IndianRupee, LayoutDashboard, Receipt, Settings, ShieldCheck, Users } from 'lucide-react'
+import { Activity, ArrowLeftRight, BarChart3, HandCoins, IndianRupee, LayoutDashboard, Receipt, Settings, ShieldCheck, Users } from 'lucide-react'
 import AppLayout from './AppLayout'
 
 const ADMIN_NAV = [
@@ -9,6 +9,7 @@ const ADMIN_NAV = [
   { to: '/admin/borrowed', label: 'Borrowed', icon: HandCoins },
   { to: '/admin/transactions', label: 'Transactions', icon: ArrowLeftRight },
   { to: '/admin/reports', label: 'Reports', icon: BarChart3 },
+  { to: '/admin/group-activity', label: 'Group Activity', icon: Activity },
   { to: '/admin/members', label: 'Members', icon: Users },
   { to: '/admin/settings', label: 'Settings', icon: Settings },
 ]

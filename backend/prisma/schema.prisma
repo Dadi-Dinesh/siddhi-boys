@@ -21,13 +21,12 @@ enum ContributionStatus {
 }
 
 model User {
-  id        String   @id @default(uuid())
-  name      String
-  email     String   @unique
-  password  String // bcrypt hash, never the plain password
-  phone           String? // legacy phone field
-  phoneNumber     String? // Indian mobile number, e.g. +91 9876543210
-  profileImageUrl String? // Cloudinary profile picture URL
+  id              String   @id @default(uuid())
+  name            String
+  email           String   @unique
+  password        String // bcrypt hash, never the plain password
+  phoneNumber     String? // Indian mobile number stored as text, e.g. "+91 9876543210"
+  profileImageUrl String? // Cloudinary URL of the profile photo (the image itself is never stored here)
   role            Role     @default(MEMBER)
   isActive        Boolean  @default(true) // "deleting" a member sets this to false, so history is kept
   createdAt       DateTime @default(now())

@@ -58,10 +58,6 @@ function phoneNumber(value, { required = false } = {}) {
   return `+91 ${core}`;
 }
 
-function phone(value, options = { required: false }) {
-  return phoneNumber(value, options);
-}
-
 function boolean(value, field) {
   if (typeof value !== 'boolean') throw new AppError(`${field} must be true or false`);
   return value;
@@ -157,7 +153,6 @@ module.exports = {
   text,
   email,
   password,
-  phone,
   phoneNumber,
   boolean,
   amount,

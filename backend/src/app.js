@@ -23,20 +23,23 @@ app.use(helmet());
 
 // In production only the deployed frontend may call the API. CLIENT_URL can list several
 // addresses separated by commas, e.g. "https://siddhiboys.vercel.app,https://www.example.com".
-// During development any origin is allowed.
+// Addresses are compared without a trailing "/" and ignoring upper/lower case.
+// During development (NODE_ENV not "production") any origin is allowed, e.g. http://localhost:5173.
+// Login uses an "Authorization: Bearer" header, not cookies, so credentials mode is not needed.
 const isProd = process.env.NODE_ENV === 'production';
-const allowedOrigins = (process.env.CLIENT_URL || '')
-  .split(',')
-  .map((url) => url.trim().replace(/\/+$/, ''))
-  .filter(Boolean);
+const normalizeOrigin = (url) => url.trim().replace(/\/+$/, '').toLowerCase();
+const allowedOrigins = (process.env.CLIENT_URL || '').split(',').map(normalizeOrigin).filter(Boolean);
+// Registered before every route, so OPTIONS preflight requests are answered here (204).
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin || !isProd || allowedOrigins.includes(origin)) return callback(null, true);
+      if (!origin || !isProd || allowedOrigins.includes(normalizeOrigin(origin))) return callback(null, true);
       return callback(null, false); // browser blocks the response; no error noise in the logs
     },
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
+    optionsSuccessStatus: 204,
+    maxAge: 600, // browsers may reuse a preflight answer for 10 minutes
   }),
 );
 

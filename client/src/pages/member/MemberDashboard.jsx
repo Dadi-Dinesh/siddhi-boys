@@ -1,10 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useAuth } from '../../hooks/useAuth'
 import { useMemberDashboard } from '../../hooks/useMemberDashboard'
 import { formatRupees } from '../../utils/format'
 import { currentMonth, monthLabel } from '../../utils/months'
 import LoadError from '../../components/LoadError'
-import PageHeader from '../../components/PageHeader'
 import RefreshButton from '../../components/RefreshButton'
 import StatCard from '../../components/StatCard'
 import CurrentMonthCard from '../../components/member/CurrentMonthCard'
@@ -22,6 +21,10 @@ export default function MemberDashboard() {
   const [refreshing, setRefreshing] = useState(false)
   const [retryingGroup, setRetryingGroup] = useState(false)
 
+  useEffect(() => {
+    document.title = 'Dashboard · SiddhiBoys'
+  }, [])
+
   async function refreshAll() {
     setRefreshing(true)
     await Promise.all([mine.reload(), group.reload()])
@@ -38,7 +41,7 @@ export default function MemberDashboard() {
   const thisMonthLabel =
     mine.data?.summary.currentMonth?.label ?? group.data?.currentMonth.label ?? monthLabel(fallback.year, fallback.month)
 
-  const phoneDisplay = user?.phoneNumber || user?.phone
+  const phoneDisplay = user?.phoneNumber
 
   return (
     <div className="space-y-6">

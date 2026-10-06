@@ -11,29 +11,12 @@ const memberSelect = {
   id: true,
   name: true,
   email: true,
-  phone: true,
   phoneNumber: true,
   profileImageUrl: true,
   role: true,
   isActive: true,
   createdAt: true,
 };
-
-function formatMember(user) {
-  if (!user) return null;
-  const phoneVal = user.phoneNumber || user.phone || null;
-  return {
-    id: user.id,
-    name: user.name,
-    email: user.email,
-    phone: phoneVal,
-    phoneNumber: phoneVal,
-    profileImageUrl: user.profileImageUrl || null,
-    role: user.role,
-    isActive: user.isActive,
-    createdAt: user.createdAt,
-  };
-}
 
 // This API only manages MEMBER accounts, so an admin account can't be
 // edited or deactivated through it by mistake.
@@ -63,7 +46,7 @@ async function listMembers({ search, includeInactive }) {
     ];
   }
   const items = await prisma.user.findMany({ where, select: memberSelect, orderBy: { name: 'asc' } });
-  return { items: items.map(formatMember), total: items.length };
+  return { items, total: items.length };
 }
 
 async function getMember(id) {
@@ -75,7 +58,7 @@ async function getMember(id) {
       orderBy: [{ year: 'desc' }, { month: 'desc' }],
     }),
   ]);
-  return { member: formatMember(member), summary, paymentHistory: history.map(formatContribution) };
+  return { member, summary, paymentHistory: history.map(formatContribution) };
 }
 
 // Members log in with their email. Their username is the part before "@",
@@ -84,32 +67,30 @@ function defaultPasswordFor(email) {
   return `${email.split('@')[0]}@123`;
 }
 
-async function createMember(body, file) {
-  const phoneInput = body.phoneNumber || body.phone;
-  const validatedPhone = validate.phoneNumber(phoneInput, { required: true });
+// Multipart forms (sent when a photo is attached) turn true/false into "true"/"false".
+function booleanField(value, field) {
+  if (value === 'true') return true;
+  if (value === 'false') return false;
+  return validate.boolean(value, field);
+}
 
+async function createMember(body, file) {
   const data = {
     name: validate.text(body.name, 'Name'),
     email: validate.email(body.email),
-    phone: validatedPhone,
-    phoneNumber: validatedPhone,
+    phoneNumber: validate.phoneNumber(body.phoneNumber, { required: true }),
   };
   await ensureEmailIsFree(data.email);
 
-  if (file) {
-    data.profileImageUrl = await uploadProfilePhotoToCloudinary(file);
-  } else if (body.profileImageUrl && typeof body.profileImageUrl === 'string') {
-    data.profileImageUrl = body.profileImageUrl.trim();
-  }
+  // Only an uploaded file can set the photo, never a URL sent by the browser.
+  if (file) data.profileImageUrl = await uploadProfilePhotoToCloudinary(file);
 
   // Role is always MEMBER here, whatever the request body says.
   // Only the bcrypt hash of the default password is stored.
-  const created = await prisma.user.create({
+  return prisma.user.create({
     data: { ...data, role: 'MEMBER', password: await hashPassword(defaultPasswordFor(data.email)) },
     select: memberSelect,
   });
-
-  return formatMember(created);
 }
 
 // Only the fields that are sent get updated. Role can never be changed here.
@@ -123,47 +104,30 @@ async function updateMember(id, body, file) {
     await ensureEmailIsFree(data.email, id);
   }
 
-  const phoneInput = body.phoneNumber !== undefined ? body.phoneNumber : body.phone;
-  if (phoneInput !== undefined) {
-    const validatedPhone = validate.phoneNumber(phoneInput, { required: false });
-    data.phone = validatedPhone;
-    data.phoneNumber = validatedPhone;
-  }
-
-  if (body.isActive !== undefined) data.isActive = validate.boolean(body.isActive, 'isActive');
+  if (body.phoneNumber !== undefined) data.phoneNumber = validate.phoneNumber(body.phoneNumber);
+  if (body.isActive !== undefined) data.isActive = booleanField(body.isActive, 'isActive');
   if (body.password !== undefined && body.password !== '') {
     data.password = await hashPassword(validate.password(body.password));
   }
 
-  if (file) {
-    const newUrl = await uploadProfilePhotoToCloudinary(file);
-    if (newUrl) {
-      if (current.profileImageUrl && current.profileImageUrl !== newUrl) {
-        await deleteCloudinaryImage(current.profileImageUrl);
-      }
-      data.profileImageUrl = newUrl;
-    }
-  } else if (body.removePhoto === 'true' || body.removePhoto === true) {
-    if (current.profileImageUrl) {
-      await deleteCloudinaryImage(current.profileImageUrl);
-    }
-    data.profileImageUrl = null;
-  } else if (body.profileImageUrl !== undefined) {
-    data.profileImageUrl = body.profileImageUrl ? String(body.profileImageUrl).trim() : null;
-  }
+  // Only an uploaded file can set the photo, never a URL sent by the browser.
+  const removePhoto = body.removePhoto !== undefined && booleanField(body.removePhoto, 'removePhoto');
+  if (file) data.profileImageUrl = await uploadProfilePhotoToCloudinary(file);
+  else if (removePhoto) data.profileImageUrl = null;
 
   if (Object.keys(data).length === 0) throw new AppError('Nothing to update');
 
   const updated = await prisma.user.update({ where: { id }, data, select: memberSelect });
-  return formatMember(updated);
+  // The old photo is removed from Cloudinary only after the new details are saved.
+  if (data.profileImageUrl !== undefined && current.profileImageUrl) await deleteCloudinaryImage(current.profileImageUrl);
+  return updated;
 }
 
 // "Deleting" a member only deactivates them. Their contribution history stays,
 // so past totals never change. They also can no longer log in.
 async function setActive(id, isActive) {
   await findMemberOrFail(id);
-  const updated = await prisma.user.update({ where: { id }, data: { isActive }, select: memberSelect });
-  return formatMember(updated);
+  return prisma.user.update({ where: { id }, data: { isActive }, select: memberSelect });
 }
 
 module.exports = { listMembers, getMember, createMember, updateMember, setActive };

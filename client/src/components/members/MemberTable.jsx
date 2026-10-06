@@ -1,5 +1,4 @@
 import Avatar from '../Avatar'
-import { formatDate } from '../../utils/format'
 import { MemberActions, MemberStatusBadge } from './MemberStatus'
 
 // Desktop view. Click a name to see that member's details and payment history.
@@ -19,7 +18,7 @@ export default function MemberTable({ members, busyId, onView, onEdit, onDeactiv
         </thead>
         <tbody className="divide-y divide-slate-100">
           {members.map((m) => {
-            const phoneDisplay = m.phoneNumber || m.phone
+            const phoneDisplay = m.phoneNumber
             return (
               <tr key={m.id} className={`hover:bg-slate-50/50 ${m.isActive ? '' : 'text-slate-500'}`}>
                 <td className="py-3 px-3 text-center">

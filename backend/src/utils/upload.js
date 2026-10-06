@@ -69,13 +69,10 @@ async function fetchScreenshot(url) {
 
 const PROFILE_FOLDER = 'siddhiboys/profiles';
 
-// Uploads a member's profile photo to Cloudinary and returns its URL.
+// Uploads a member's profile photo to Cloudinary (resized to 400×400) and returns its URL.
+// Profile photos are ordinary (public) Cloudinary images; payment screenshots are not.
 function uploadProfilePhotoToCloudinary(file) {
-  if (!file) return null;
   if (!isCloudinaryConfigured()) {
-    if (process.env.NODE_ENV !== 'production') {
-      return `https://res.cloudinary.com/siddhiboys/image/upload/v1/mock/profile_${Date.now()}.png`;
-    }
     throw new AppError('Image upload is not configured on the server. Please contact the admin.', 503);
   }
   return new Promise((resolve, reject) => {
@@ -96,53 +93,24 @@ function uploadProfilePhotoToCloudinary(file) {
   });
 }
 
-// Attempts to delete an old photo from Cloudinary when replaced.
+// Deletes a replaced/removed profile photo from Cloudinary. Only images in our own profile
+// folder are ever deleted. A failure here never blocks saving the member.
 async function deleteCloudinaryImage(url) {
-  if (!url || typeof url !== 'string' || !isCloudinaryConfigured()) return;
+  if (typeof url !== 'string' || !isCloudinaryConfigured()) return;
+  const match = url.match(/\/upload\/(?:v\d+\/)?(.+?)\.[a-zA-Z0-9]+$/);
+  if (!match || !match[1].startsWith(`${PROFILE_FOLDER}/`)) return;
   try {
-    const match = url.match(/\/upload\/(?:v\d+\/)?(.+?)\.[a-zA-Z0-9]+$/);
-    if (match && match[1]) {
-      await cloudinary.uploader.destroy(match[1]);
-    }
+    await cloudinary.uploader.destroy(match[1]);
   } catch {
-    // Non-fatal if old image could not be removed
+    // The old image stays on Cloudinary; nothing else is affected.
   }
-}
-
-const profileFieldsUpload = upload.fields([
-  { name: 'photo', maxCount: 1 },
-  { name: 'profilePhoto', maxCount: 1 },
-  { name: 'profileImage', maxCount: 1 },
-  { name: 'image', maxCount: 1 },
-]);
-
-function extractProfileFile(req) {
-  if (req.file) return req.file;
-  if (req.files) {
-    for (const key of ['photo', 'profilePhoto', 'profileImage', 'image']) {
-      if (req.files[key] && req.files[key][0]) return req.files[key][0];
-    }
-  }
-  return null;
-}
-
-function handleProfilePhotoUpload(req, res, next) {
-  const contentType = req.headers['content-type'] || '';
-  if (!contentType.includes('multipart/form-data')) {
-    return next();
-  }
-  profileFieldsUpload(req, res, (err) => {
-    if (err) return next(err);
-    req.file = extractProfileFile(req);
-    next();
-  });
 }
 
 module.exports = {
   uploadScreenshot: upload.single('screenshot'),
   uploadScreenshotToCloudinary,
   fetchScreenshot,
-  uploadProfilePhoto: handleProfilePhotoUpload,
+  uploadProfilePhoto: upload.single('photo'), // JSON requests without a file pass straight through
   uploadProfilePhotoToCloudinary,
   deleteCloudinaryImage,
 };

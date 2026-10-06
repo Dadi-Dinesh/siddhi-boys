@@ -83,7 +83,7 @@ export default function AdminDashboard() {
                 icon={HandCoins}
                 label="Currently borrowed"
                 value={formatRupees(summary.currentlyBorrowed)}
-                hint="Not yet returned (not an expense)"
+                hint={`${formatRupees(summary.totalBorrowed)} borrowed in total · ${formatRupees(summary.totalReturnedBorrowed)} returned`}
               />
               <SummaryCard
                 icon={Wallet}

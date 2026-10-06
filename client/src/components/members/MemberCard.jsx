@@ -4,7 +4,7 @@ import { MemberActions, MemberStatusBadge } from './MemberStatus'
 
 // Phone/tablet view: one card per member with photo, name, phone, email, and actions.
 export default function MemberCard({ member: m, busy, onView, onEdit, onDeactivate, onActivate }) {
-  const phoneDisplay = m.phoneNumber || m.phone
+  const phoneDisplay = m.phoneNumber
 
   return (
     <li className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
