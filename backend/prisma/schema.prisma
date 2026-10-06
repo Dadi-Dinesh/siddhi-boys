@@ -1,0 +1,129 @@
+// Batch Fund database schema.
+// After editing this file run:  npm run db:migrate
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  MEMBER
+}
+
+enum ContributionStatus {
+  PAID
+  UNPAID
+}
+
+model User {
+  id        String   @id @default(uuid())
+  name      String
+  email     String   @unique
+  password  String // bcrypt hash, never the plain password
+  phone     String? // optional
+  role      Role     @default(MEMBER)
+  isActive  Boolean  @default(true) // "deleting" a member sets this to false, so history is kept
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  contributions          MonthlyContribution[]
+  expenses               Expense[] // expenses this admin recorded
+  submittedVerifications PaymentVerification[] @relation("SubmittedVerifications")
+  reviewedVerifications  PaymentVerification[] @relation("ReviewedVerifications")
+}
+
+// Only one row is used (id = 1). Holds the default monthly amount,
+// due date day, and late fine amount, so they are never hardcoded.
+model GroupSettings {
+  id                  Int      @id @default(1)
+  groupName           String   @default("SiddhiBoys")
+  monthlyContribution Decimal  @default(100) @db.Decimal(10, 2)
+  dueDay              Int      @default(10) // Day of the month (1-31), e.g. 10th
+  fineAmount          Decimal  @default(20) @db.Decimal(10, 2) // Default late fine
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+// One row per member per month.
+model MonthlyContribution {
+  id              String             @id @default(uuid())
+  userId          String
+  month           Int // 1 = January ... 12 = December
+  year            Int
+  amount          Decimal            @db.Decimal(10, 2) // base contribution amount
+  dueDate         DateTime?          @db.Date // due date for this month's contribution
+  lateFine        Decimal            @default(20) @db.Decimal(10, 2) // applicable fine for this month
+  fineAmount      Decimal            @default(0) @db.Decimal(10, 2) // actual fine paid
+  totalPaidAmount Decimal?           @db.Decimal(10, 2) // amount + fineAmount when PAID
+  paymentDate     DateTime?          @db.Date // actual payment date
+  status          ContributionStatus @default(UNPAID)
+  paidAt          DateTime?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  // Restrict: the database refuses to delete a user who has contribution history.
+  user          User                  @relation(fields: [userId], references: [id], onDelete: Restrict)
+  verifications PaymentVerification[]
+
+  @@unique([userId, month, year]) // a member can't have two records for the same month
+  @@index([year, month])
+}
+
+model Expense {
+  id          String   @id @default(uuid())
+  title       String
+  description String?
+  amount      Decimal  @db.Decimal(10, 2)
+  date        DateTime @db.Date
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Restrict: an admin who recorded expenses can't be hard-deleted.
+  createdBy User @relation(fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([date])
+}
+
+enum PaymentVerificationStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+}
+
+enum SubmitterRole {
+  MEMBER
+  ADMIN
+}
+
+model PaymentVerification {
+  id              String                    @id @default(uuid())
+  contributionId  String
+  submittedById   String
+  submittedByRole SubmitterRole             @default(MEMBER)
+  screenshotUrl   String
+  paymentDate     DateTime?                 @db.Date
+  fineAmount      Decimal                   @default(0) @db.Decimal(10, 2)
+  totalAmount     Decimal?                  @db.Decimal(10, 2)
+  status          PaymentVerificationStatus @default(PENDING)
+  note            String?
+  rejectionReason String?
+  reviewedById    String?
+  submittedAt     DateTime                  @default(now())
+  reviewedAt      DateTime?
+  createdAt       DateTime                  @default(now())
+  updatedAt       DateTime                  @updatedAt
+
+  contribution MonthlyContribution @relation(fields: [contributionId], references: [id], onDelete: Cascade)
+  submittedBy  User                @relation("SubmittedVerifications", fields: [submittedById], references: [id], onDelete: Restrict)
+  reviewedBy   User?               @relation("ReviewedVerifications", fields: [reviewedById], references: [id], onDelete: Restrict)
+
+  @@index([contributionId])
+  @@index([status])
+  @@index([submittedById])
+}

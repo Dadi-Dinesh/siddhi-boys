@@ -1,0 +1,19 @@
+# Local PostgreSQL for development only.
+# Start:  docker compose up -d      Stop:  docker compose down
+# Values come from the root .env file (see .env.example).
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: batchfund-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "5432:5432"
+    volumes:
+      - batchfund-data:/var/lib/postgresql/data
+
+volumes:
+  batchfund-data:

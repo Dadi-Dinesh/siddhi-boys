@@ -1,0 +1,35 @@
+@import "tailwindcss";
+
+/*
+  Design tokens — the only colours used in the app.
+  primary  → calm indigo accent (buttons, links, active nav)
+  success  → paid / money in
+  warning  → pending / attention
+  danger   → unpaid / money out / errors
+  Neutral text and backgrounds use Tailwind's built-in "slate" scale.
+*/
+@theme {
+  --color-primary-50: #eef2ff;
+  --color-primary-100: #e0e7ff;
+  --color-primary-500: #6366f1;
+  --color-primary-600: #4f46e5;
+  --color-primary-700: #4338ca;
+
+  --color-success-50: #ecfdf5;
+  --color-success-600: #059669;
+  --color-success-700: #047857;
+
+  --color-warning-50: #fffbeb;
+  --color-warning-600: #d97706;
+  --color-warning-700: #b45309;
+
+  --color-danger-50: #fef2f2;
+  --color-danger-600: #dc2626;
+  --color-danger-700: #b91c1c;
+
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+body {
+  @apply bg-slate-50 text-slate-800 antialiased;
+}
