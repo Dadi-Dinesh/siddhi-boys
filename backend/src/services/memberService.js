@@ -2,6 +2,7 @@ const prisma = require('../config/prisma');
 const { hashPassword } = require('../utils/password');
 const { AppError } = require('../utils/response');
 const validate = require('../utils/validate');
+const { uploadProfilePhotoToCloudinary, deleteCloudinaryImage } = require('../utils/upload');
 const { getMemberTotals } = require('./summaryService');
 const { formatContribution } = require('./contributionService');
 
@@ -11,10 +12,28 @@ const memberSelect = {
   name: true,
   email: true,
   phone: true,
+  phoneNumber: true,
+  profileImageUrl: true,
   role: true,
   isActive: true,
   createdAt: true,
 };
+
+function formatMember(user) {
+  if (!user) return null;
+  const phoneVal = user.phoneNumber || user.phone || null;
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    phone: phoneVal,
+    phoneNumber: phoneVal,
+    profileImageUrl: user.profileImageUrl || null,
+    role: user.role,
+    isActive: user.isActive,
+    createdAt: user.createdAt,
+  };
+}
 
 // This API only manages MEMBER accounts, so an admin account can't be
 // edited or deactivated through it by mistake.
@@ -44,7 +63,7 @@ async function listMembers({ search, includeInactive }) {
     ];
   }
   const items = await prisma.user.findMany({ where, select: memberSelect, orderBy: { name: 'asc' } });
-  return { items, total: items.length };
+  return { items: items.map(formatMember), total: items.length };
 }
 
 async function getMember(id) {
@@ -56,28 +75,46 @@ async function getMember(id) {
       orderBy: [{ year: 'desc' }, { month: 'desc' }],
     }),
   ]);
-  return { member, summary, paymentHistory: history.map(formatContribution) };
+  return { member: formatMember(member), summary, paymentHistory: history.map(formatContribution) };
 }
 
-async function createMember(body) {
+// Members log in with their email. Their username is the part before "@",
+// and their first password is always "<username>@123", e.g. rahul@gmail.com → rahul@123.
+function defaultPasswordFor(email) {
+  return `${email.split('@')[0]}@123`;
+}
+
+async function createMember(body, file) {
+  const phoneInput = body.phoneNumber || body.phone;
+  const validatedPhone = validate.phoneNumber(phoneInput, { required: true });
+
   const data = {
     name: validate.text(body.name, 'Name'),
     email: validate.email(body.email),
-    phone: validate.phone(body.phone),
+    phone: validatedPhone,
+    phoneNumber: validatedPhone,
   };
-  const plainPassword = validate.password(body.password);
   await ensureEmailIsFree(data.email);
 
+  if (file) {
+    data.profileImageUrl = await uploadProfilePhotoToCloudinary(file);
+  } else if (body.profileImageUrl && typeof body.profileImageUrl === 'string') {
+    data.profileImageUrl = body.profileImageUrl.trim();
+  }
+
   // Role is always MEMBER here, whatever the request body says.
-  return prisma.user.create({
-    data: { ...data, role: 'MEMBER', password: await hashPassword(plainPassword) },
+  // Only the bcrypt hash of the default password is stored.
+  const created = await prisma.user.create({
+    data: { ...data, role: 'MEMBER', password: await hashPassword(defaultPasswordFor(data.email)) },
     select: memberSelect,
   });
+
+  return formatMember(created);
 }
 
 // Only the fields that are sent get updated. Role can never be changed here.
-async function updateMember(id, body) {
-  await findMemberOrFail(id);
+async function updateMember(id, body, file) {
+  const current = await findMemberOrFail(id);
   const data = {};
 
   if (body.name !== undefined) data.name = validate.text(body.name, 'Name');
@@ -85,22 +122,49 @@ async function updateMember(id, body) {
     data.email = validate.email(body.email);
     await ensureEmailIsFree(data.email, id);
   }
-  if (body.phone !== undefined) data.phone = validate.phone(body.phone);
+
+  const phoneInput = body.phoneNumber !== undefined ? body.phoneNumber : body.phone;
+  if (phoneInput !== undefined) {
+    const validatedPhone = validate.phoneNumber(phoneInput, { required: false });
+    data.phone = validatedPhone;
+    data.phoneNumber = validatedPhone;
+  }
+
   if (body.isActive !== undefined) data.isActive = validate.boolean(body.isActive, 'isActive');
   if (body.password !== undefined && body.password !== '') {
     data.password = await hashPassword(validate.password(body.password));
   }
 
+  if (file) {
+    const newUrl = await uploadProfilePhotoToCloudinary(file);
+    if (newUrl) {
+      if (current.profileImageUrl && current.profileImageUrl !== newUrl) {
+        await deleteCloudinaryImage(current.profileImageUrl);
+      }
+      data.profileImageUrl = newUrl;
+    }
+  } else if (body.removePhoto === 'true' || body.removePhoto === true) {
+    if (current.profileImageUrl) {
+      await deleteCloudinaryImage(current.profileImageUrl);
+    }
+    data.profileImageUrl = null;
+  } else if (body.profileImageUrl !== undefined) {
+    data.profileImageUrl = body.profileImageUrl ? String(body.profileImageUrl).trim() : null;
+  }
+
   if (Object.keys(data).length === 0) throw new AppError('Nothing to update');
 
-  return prisma.user.update({ where: { id }, data, select: memberSelect });
+  const updated = await prisma.user.update({ where: { id }, data, select: memberSelect });
+  return formatMember(updated);
 }
 
 // "Deleting" a member only deactivates them. Their contribution history stays,
 // so past totals never change. They also can no longer log in.
 async function setActive(id, isActive) {
   await findMemberOrFail(id);
-  return prisma.user.update({ where: { id }, data: { isActive }, select: memberSelect });
+  const updated = await prisma.user.update({ where: { id }, data: { isActive }, select: memberSelect });
+  return formatMember(updated);
 }
 
 module.exports = { listMembers, getMember, createMember, updateMember, setActive };
+

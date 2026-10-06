@@ -1,4 +1,5 @@
 import Badge from '../Badge'
+import Avatar from '../Avatar'
 import { formatDate, formatRupees } from '../../utils/format'
 import { PaymentButton, ScreenshotIndicator, StatusBadge } from './ContributionStatus'
 
@@ -20,16 +21,19 @@ export default function ContributionCard({
   return (
     <li className="rounded-xl border border-slate-200 p-4">
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="flex items-center gap-2 font-medium text-slate-900">
-            <span className="truncate">{c.member.name}</span>
-            {!c.member.isActive && <Badge>Inactive</Badge>}
-          </p>
-          <p className="mt-0.5 text-xs text-slate-500">
-            {isPaid
-              ? (c.paymentDate ? `Paid on ${formatDate(c.paymentDate)}` : `Paid on ${formatDate(c.paidAt)}`)
-              : (c.dueDate ? `Due by ${formatDate(c.dueDate)}` : 'Not paid yet')}
-          </p>
+        <div className="flex items-center gap-2.5 min-w-0">
+          <Avatar src={c.member?.profileImageUrl} name={c.member?.name} size="sm" />
+          <div className="min-w-0">
+            <p className="flex items-center gap-2 font-medium text-slate-900">
+              <span className="truncate">{c.member.name}</span>
+              {!c.member.isActive && <Badge>Inactive</Badge>}
+            </p>
+            <p className="mt-0.5 text-xs text-slate-500">
+              {isPaid
+                ? (c.paymentDate ? `Paid on ${formatDate(c.paymentDate)}` : `Paid on ${formatDate(c.paidAt)}`)
+                : (c.dueDate ? `Due by ${formatDate(c.dueDate)}` : 'Not paid yet')}
+            </p>
+          </div>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1.5">
           <span className="font-bold tabular-nums text-slate-900">{formatRupees(totalVal)}</span>

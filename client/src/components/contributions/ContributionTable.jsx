@@ -1,4 +1,5 @@
 import Badge from '../Badge'
+import Avatar from '../Avatar'
 import { formatDate, formatRupees } from '../../utils/format'
 import { PaymentButton, ScreenshotIndicator, StatusBadge } from './ContributionStatus'
 
@@ -36,11 +37,16 @@ export default function ContributionTable({
             return (
               <tr key={c.id} className="hover:bg-slate-50/50">
                 <td className="py-3 pr-3">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-slate-900">{c.member.name}</span>
-                    {!c.member.isActive && <Badge>Inactive</Badge>}
+                  <div className="flex items-center gap-2.5">
+                    <Avatar src={c.member?.profileImageUrl} name={c.member?.name} size="sm" />
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-slate-900">{c.member.name}</span>
+                        {!c.member.isActive && <Badge>Inactive</Badge>}
+                      </div>
+                      <div className="text-xs text-slate-500">{c.member.email}</div>
+                    </div>
                   </div>
-                  <div className="text-xs text-slate-500">{c.member.email}</div>
                 </td>
                 <td className="px-3 py-3 text-right tabular-nums text-slate-700 font-medium">{formatRupees(baseVal)}</td>
                 <td className="px-3 py-3 text-right tabular-nums">

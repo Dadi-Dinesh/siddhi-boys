@@ -1,25 +1,23 @@
-const path = require('path');
-const fs = require('fs');
 const prisma = require('../config/prisma');
 const { AppError } = require('../utils/response');
 const validate = require('../utils/validate');
 const { ZERO, toDecimal, toMoney } = require('../utils/money');
 const {
   formatMonth,
-  currentMonthYear,
   toDateString,
   formatDateLabel,
   calculateDueDate,
   isLatePayment,
 } = require('../utils/date');
-const { UPLOAD_DIR } = require('../utils/upload');
+const { uploadScreenshotToCloudinary, fetchScreenshot } = require('../utils/upload');
 
 function formatVerification(v) {
   const result = {
     id: v.id,
     contributionId: v.contributionId,
     status: v.status,
-    screenshotUrl: `/api/payment-verifications/${v.id}/screenshot`,
+    // Path relative to the API base URL. The real Cloudinary URL never leaves the server.
+    screenshotUrl: `/payment-verifications/${v.id}/screenshot`,
     note: v.note,
     rejectionReason: v.rejectionReason,
     submittedByRole: v.submittedByRole,
@@ -75,6 +73,7 @@ function formatVerification(v) {
             id: v.contribution.user.id,
             name: v.contribution.user.name,
             email: v.contribution.user.email,
+            profileImageUrl: v.contribution.user.profileImageUrl || null,
           }
         : null,
     };
@@ -125,12 +124,15 @@ async function submitMemberVerification({ contributionId, userId, userRole, file
   const fineVal = isLate ? toDecimal(contribution.lateFine ?? 20) : ZERO;
   const totalVal = baseVal.plus(fineVal);
 
+  // Upload only after every check has passed, so rejected requests leave no files behind.
+  const screenshotUrl = await uploadScreenshotToCloudinary(file);
+
   const verification = await prisma.paymentVerification.create({
     data: {
       contributionId,
       submittedById: userId,
       submittedByRole: userRole,
-      screenshotUrl: file.filename,
+      screenshotUrl,
       status: 'PENDING',
       paymentDate: payDate,
       fineAmount: fineVal,
@@ -139,7 +141,7 @@ async function submitMemberVerification({ contributionId, userId, userRole, file
     },
     include: {
       contribution: {
-        include: { user: { select: { id: true, name: true, email: true } } },
+        include: { user: { select: { id: true, name: true, email: true, profileImageUrl: true } } },
       },
       submittedBy: { select: { id: true, name: true, role: true } },
     },
@@ -154,6 +156,10 @@ async function adminMarkPaidWithScreenshot({ contributionId, adminUserId, file, 
   validate.id(contributionId, 'Contribution');
   const payDate = validate.paymentDate(paymentDate, 'Payment date');
   const payDateStr = toDateString(payDate);
+
+  const existing = await prisma.monthlyContribution.findUnique({ where: { id: contributionId }, select: { id: true } });
+  if (!existing) throw new AppError('Contribution not found', 404);
+  const screenshotUrl = await uploadScreenshotToCloudinary(file);
 
   return prisma.$transaction(async (tx) => {
     const contribution = await tx.monthlyContribution.findUnique({
@@ -178,7 +184,7 @@ async function adminMarkPaidWithScreenshot({ contributionId, adminUserId, file, 
         contributionId,
         submittedById: adminUserId,
         submittedByRole: 'ADMIN',
-        screenshotUrl: file.filename,
+        screenshotUrl,
         status: 'ACCEPTED',
         reviewedById: adminUserId,
         reviewedAt: now,
@@ -256,7 +262,7 @@ async function acceptVerification(id, adminUserId) {
       },
       include: {
         contribution: {
-          include: { user: { select: { id: true, name: true, email: true } } },
+          include: { user: { select: { id: true, name: true, email: true, profileImageUrl: true } } },
         },
         submittedBy: { select: { id: true, name: true, role: true } },
         reviewedBy: { select: { id: true, name: true } },
@@ -295,7 +301,7 @@ async function declineVerification(id, adminUserId, rejectionReason) {
       },
       include: {
         contribution: {
-          include: { user: { select: { id: true, name: true, email: true } } },
+          include: { user: { select: { id: true, name: true, email: true, profileImageUrl: true } } },
         },
         submittedBy: { select: { id: true, name: true, role: true } },
         reviewedBy: { select: { id: true, name: true } },
@@ -320,7 +326,7 @@ async function listVerifications(query = {}) {
     where,
     include: {
       contribution: {
-        include: { user: { select: { id: true, name: true, email: true } } },
+        include: { user: { select: { id: true, name: true, email: true, profileImageUrl: true } } },
       },
       submittedBy: { select: { id: true, name: true, role: true } },
       reviewedBy: { select: { id: true, name: true } },
@@ -334,28 +340,8 @@ async function listVerifications(query = {}) {
   };
 }
 
-// Get single verification details
-async function getVerificationById(id, requestingUser) { // eslint-disable-line no-unused-vars
-  validate.id(id, 'Verification');
-
-  const verification = await prisma.paymentVerification.findUnique({
-    where: { id },
-    include: {
-      contribution: {
-        include: { user: { select: { id: true, name: true, email: true } } },
-      },
-      submittedBy: { select: { id: true, name: true, role: true } },
-      reviewedBy: { select: { id: true, name: true } },
-    },
-  });
-
-  if (!verification) throw new AppError('Payment verification not found', 404);
-
-  return formatVerification(verification);
-}
-
-// Safe resolution of the screenshot file path for an authorized user
-async function getScreenshotFilePath(id, requestingUser) { // eslint-disable-line no-unused-vars
+// Loads a screenshot from Cloudinary for a logged-in user (the route requires login).
+async function getScreenshot(id) {
   validate.id(id, 'Verification');
 
   const verification = await prisma.paymentVerification.findUnique({
@@ -365,69 +351,7 @@ async function getScreenshotFilePath(id, requestingUser) { // eslint-disable-lin
 
   if (!verification) throw new AppError('Payment verification not found', 404);
 
-  // Prevent directory traversal attacks
-  const safeFilename = path.basename(verification.screenshotUrl);
-  const filePath = path.join(UPLOAD_DIR, safeFilename);
-
-  if (!fs.existsSync(filePath)) {
-    throw new AppError('Screenshot image file not found on server', 404);
-  }
-
-  return filePath;
-}
-
-// Get verifications for a specific member
-async function getMyVerifications(userId) {
-  const items = await prisma.paymentVerification.findMany({
-    where: {
-      OR: [
-        { submittedById: userId },
-        { contribution: { userId } },
-      ],
-    },
-    include: {
-      contribution: {
-        include: { user: { select: { id: true, name: true, email: true } } },
-      },
-      submittedBy: { select: { id: true, name: true, role: true } },
-      reviewedBy: { select: { id: true, name: true } },
-    },
-    orderBy: { createdAt: 'desc' },
-  });
-
-  return {
-    items: items.map(formatVerification),
-    total: items.length,
-  };
-}
-
-// Get member's latest verification for current month's contribution
-async function getMyCurrentVerification(userId) {
-  const { month, year } = currentMonthYear();
-
-  const contribution = await prisma.monthlyContribution.findUnique({
-    where: { userId_month_year: { userId, month, year } },
-    include: {
-      verifications: {
-        orderBy: { createdAt: 'desc' },
-        take: 1,
-        include: {
-          submittedBy: { select: { id: true, name: true, role: true } },
-          reviewedBy: { select: { id: true, name: true } },
-        },
-      },
-    },
-  });
-
-  if (!contribution) return null;
-
-  const latestVerification = contribution.verifications[0];
-  if (!latestVerification) return null;
-
-  return formatVerification({
-    ...latestVerification,
-    contribution,
-  });
+  return fetchScreenshot(verification.screenshotUrl);
 }
 
 module.exports = {
@@ -436,9 +360,6 @@ module.exports = {
   acceptVerification,
   declineVerification,
   listVerifications,
-  getVerificationById,
-  getScreenshotFilePath,
-  getMyVerifications,
-  getMyCurrentVerification,
+  getScreenshot,
   formatVerification,
 };

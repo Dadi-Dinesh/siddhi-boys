@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { LogOut, Menu, X } from 'lucide-react'
 import GaneshaLogo from '../components/GaneshaLogo'
+import Avatar from '../components/Avatar'
 import { useAuth } from '../hooks/useAuth'
 import { useGroup } from '../hooks/useGroup'
 import { GroupProvider } from '../context/GroupContext'
@@ -54,9 +55,12 @@ function Frame({ navItems }) {
 
   const userBox = (
     <div className="flex items-center justify-between gap-2 border-t border-slate-200 pt-4">
-      <div className="min-w-0">
-        <p className="truncate text-sm font-medium text-slate-900">{user.name}</p>
-        <p className="text-xs text-slate-500">{roleLabel(user.role)}</p>
+      <div className="flex items-center gap-2.5 min-w-0">
+        <Avatar src={user.profileImageUrl} name={user.name} size="sm" />
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium text-slate-900">{user.name}</p>
+          <p className="text-xs text-slate-500">{roleLabel(user.role)}</p>
+        </div>
       </div>
       <button
         type="button"

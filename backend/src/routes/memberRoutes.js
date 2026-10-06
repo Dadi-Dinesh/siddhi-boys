@@ -4,13 +4,15 @@ const { authenticate, requireAdmin } = require('../middleware/authMiddleware');
 
 const router = express.Router();
 
+const { uploadProfilePhoto } = require('../utils/upload');
+
 // Every member-management route is admin only.
 router.use(authenticate, requireAdmin);
 
 router.get('/', memberController.list);
-router.post('/', memberController.create);
+router.post('/', uploadProfilePhoto, memberController.create);
 router.get('/:id', memberController.getOne);
-router.put('/:id', memberController.update);
+router.put('/:id', uploadProfilePhoto, memberController.update);
 router.delete('/:id', memberController.deactivate);
 router.patch('/:id/activate', memberController.activate);
 

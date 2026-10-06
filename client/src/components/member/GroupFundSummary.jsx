@@ -47,8 +47,9 @@ export default function GroupFundSummary({ load, retrying, onRetry }) {
         <div className="my-3 border-t border-slate-100" />
         <Row label="Total collected" value={formatRupees(g.totalCollected)} />
         <Row label="Total expenses" value={formatRupees(g.totalExpenses)} />
+        <Row label="Currently borrowed" value={formatRupees(g.currentlyBorrowed ?? 0)} />
         <Row
-          label="Current balance"
+          label="Available balance"
           value={formatRupees(g.currentBalance)}
           strong
           tone={g.currentBalance < 0 ? 'text-danger-700' : 'text-success-700'}

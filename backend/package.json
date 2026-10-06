@@ -1,22 +1,24 @@
 {
-  "name": "batch-fund-backend",
+  "name": "siddhiboys-backend",
   "version": "1.0.0",
-  "description": "Batch Fund API",
+  "description": "SiddhiBoys API",
   "main": "src/server.js",
   "scripts": {
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
-    "db:migrate": "dotenv run -f ../.env -- prisma migrate dev",
-    "db:seed": "node prisma/seed.js",
-    "db:reset": "dotenv run -f ../.env -- prisma migrate reset",
-    "db:studio": "dotenv run -f ../.env -- prisma studio",
-    "db:deploy": "dotenv run -f ../.env -- prisma migrate deploy",
-    "build": "dotenv run -f ../.env -- prisma generate"
+    "build": "prisma generate",
+    "db:migrate": "node scripts/prisma.js migrate dev",
+    "db:deploy": "node scripts/prisma.js migrate deploy",
+    "db:status": "node scripts/prisma.js migrate status",
+    "db:studio": "node scripts/prisma.js studio",
+    "db:init": "node prisma/init.js",
+    "db:reset-data": "node prisma/init.js --reset"
   },
   "type": "commonjs",
   "dependencies": {
     "@prisma/client": "^6.19.3",
     "bcrypt": "^6.0.0",
+    "cloudinary": "^2.11.0",
     "cors": "^2.8.6",
     "dotenv": "^18.0.5",
     "express": "^5.2.1",

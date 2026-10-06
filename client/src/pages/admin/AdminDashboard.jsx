@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { CalendarDays, IndianRupee, Users, Wallet, Receipt, ShieldCheck } from 'lucide-react'
+import { CalendarDays, HandCoins, IndianRupee, PiggyBank, Users, Wallet, Receipt, ShieldCheck } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import { useDashboard } from '../../hooks/useDashboard'
 import { useGroup } from '../../hooks/useGroup'
@@ -60,10 +60,18 @@ export default function AdminDashboard() {
           <div className="space-y-6">
             {refreshError && <Alert>Couldn&apos;t refresh: {refreshError} Showing the last loaded data.</Alert>}
 
-            {/* Summary cards: 1 column on phones, 2 on tablets, 4 on wide screens */}
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {/* Summary cards: 1 column on phones, 2 on tablets, 3 on wide screens.
+                All amounts are calculated by the backend. */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
               <SummaryCard icon={Users} label="Total members" value={summary.totalMembers} hint="Active members" />
               <ThisMonthCard month={month} />
+              <SummaryCard
+                icon={PiggyBank}
+                label="Total collected"
+                value={formatRupees(summary.totalCollected)}
+                hint={summary.totalFinesCollected > 0 ? `Includes ${formatRupees(summary.totalFinesCollected)} fines` : 'Paid contributions'}
+                tone="success"
+              />
               <SummaryCard
                 icon={Receipt}
                 label="Total expenses"
@@ -72,10 +80,16 @@ export default function AdminDashboard() {
                 tone="danger"
               />
               <SummaryCard
+                icon={HandCoins}
+                label="Currently borrowed"
+                value={formatRupees(summary.currentlyBorrowed)}
+                hint="Not yet returned (not an expense)"
+              />
+              <SummaryCard
                 icon={Wallet}
-                label="Current balance"
+                label="Available balance"
                 value={formatRupees(summary.currentBalance)}
-                hint={summary.currentBalance < 0 ? 'Expenses are more than collections' : 'Available balance'}
+                hint={summary.currentBalance < 0 ? 'Expenses are more than collections' : 'Collected − expenses − borrowed'}
                 tone={summary.currentBalance < 0 ? 'danger' : 'success'}
               />
             </div>

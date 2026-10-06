@@ -137,7 +137,7 @@ export default function Expenses() {
             <StatCard label="Total expenses" value={formatRupees(data.totalExpenses)} />
             <StatCard label="Number of expenses" value={data.count} />
             <StatCard
-              label="Current balance"
+              label="Available balance"
               value={formatRupees(data.currentBalance)}
               tone={data.currentBalance < 0 ? 'text-danger-700' : 'text-success-700'}
               className="col-span-2 lg:col-span-1"

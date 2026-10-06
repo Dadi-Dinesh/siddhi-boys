@@ -1,4 +1,3 @@
-const path = require('path');
 const paymentVerificationService = require('../services/paymentVerificationService');
 const { sendSuccess } = require('../utils/response');
 
@@ -33,29 +32,11 @@ async function list(req, res) {
   sendSuccess(res, result, 'Payment verifications fetched successfully');
 }
 
-// GET /api/payment-verifications/my
-async function my(req, res) {
-  const result = await paymentVerificationService.getMyVerifications(req.user.id);
-  sendSuccess(res, result, 'My payment verifications fetched successfully');
-}
-
-// GET /api/payment-verifications/my/current
-async function myCurrent(req, res) {
-  const result = await paymentVerificationService.getMyCurrentVerification(req.user.id);
-  sendSuccess(res, result, 'Current month verification fetched successfully');
-}
-
-// GET /api/payment-verifications/:id
-async function getOne(req, res) {
-  const result = await paymentVerificationService.getVerificationById(req.params.id, req.user);
-  sendSuccess(res, result, 'Payment verification details fetched successfully');
-}
-
 // GET /api/payment-verifications/:id/screenshot (Protected file stream)
 async function getScreenshot(req, res) {
-  const filePath = await paymentVerificationService.getScreenshotFilePath(req.params.id, req.user);
+  const image = await paymentVerificationService.getScreenshot(req.params.id);
   res.setHeader('Cache-Control', 'private, max-age=86400');
-  res.sendFile(filePath);
+  res.type(image.contentType).send(image.body);
 }
 
 // PATCH /api/admin/payment-verifications/:id/accept
@@ -78,9 +59,6 @@ module.exports = {
   submit,
   adminMarkPaid,
   list,
-  my,
-  myCurrent,
-  getOne,
   getScreenshot,
   accept,
   decline,

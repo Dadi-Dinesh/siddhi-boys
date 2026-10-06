@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { UploadCloud, X, ImageIcon, AlertTriangle, Calendar } from 'lucide-react'
+import { UploadCloud, X, ImageIcon } from 'lucide-react'
 import { formatRupees, todayInputDate, formatDateLong } from '../../utils/format'
 import Modal from '../Modal'
 import Button from '../Button'

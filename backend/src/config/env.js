@@ -20,7 +20,25 @@ function checkEnvironment() {
   // In production the browser app's address must be set explicitly (used for CORS).
   if (isProduction && !process.env.CLIENT_URL) problems.push('CLIENT_URL is required in production.');
 
+  // Payment screenshots are stored on Cloudinary, so production needs all three values or CLOUDINARY_URL.
+  const hasCloudinaryUrl = Boolean(process.env.CLOUDINARY_URL);
+  const cloudinaryVars = ['CLOUDINARY_CLOUD_NAME', 'CLOUDINARY_API_KEY', 'CLOUDINARY_API_SECRET'];
+  const missingCloudinary = cloudinaryVars.filter((name) => !process.env[name]);
+  if (isProduction && !hasCloudinaryUrl && missingCloudinary.length) {
+    problems.push(`${missingCloudinary.join(', ')} ${missingCloudinary.length === 1 ? 'is' : 'are'} required in production.`);
+  }
+
   return problems;
 }
 
-module.exports = { checkEnvironment };
+// Settings that are optional during development but worth mentioning at startup.
+function environmentWarnings() {
+  const warnings = [];
+  const hasCloudinaryUrl = Boolean(process.env.CLOUDINARY_URL);
+  if (!hasCloudinaryUrl && (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET)) {
+    warnings.push('Cloudinary is not configured: payment screenshot uploads will fail until CLOUDINARY_* values are set.');
+  }
+  return warnings;
+}
+
+module.exports = { checkEnvironment, environmentWarnings };

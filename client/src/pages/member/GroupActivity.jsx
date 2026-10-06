@@ -3,6 +3,7 @@ import {
   ArrowDownLeft,
   ArrowUpRight,
   Eye,
+  HandCoins,
   IndianRupee,
   Receipt,
   Users,
@@ -12,6 +13,7 @@ import { getGroupSummary } from '../../services/groupService'
 import { getMonthContributions } from '../../services/contributionService'
 import { getExpenses } from '../../services/expenseService'
 import { getTransactions } from '../../services/transactionService'
+import { getBorrowed } from '../../services/borrowedService'
 import { formatDate, formatRupees } from '../../utils/format'
 import { buildMonthOptions, currentMonth, monthLabel } from '../../utils/months'
 import Badge from '../../components/Badge'
@@ -19,14 +21,16 @@ import Card from '../../components/Card'
 import EmptyState from '../../components/EmptyState'
 import ImageModal from '../../components/ImageModal'
 import LoadError from '../../components/LoadError'
+import Avatar from '../../components/Avatar'
 import PageHeader from '../../components/PageHeader'
 import RefreshButton from '../../components/RefreshButton'
 import SkeletonBlocks from '../../components/SkeletonBlocks'
 import StatCard from '../../components/StatCard'
 import MonthSelector from '../../components/contributions/MonthSelector'
+import BorrowedList from '../../components/borrowed/BorrowedList'
 
 export default function GroupActivity() {
-  const [activeTab, setActiveTab] = useState('contributions') // 'contributions' | 'expenses' | 'transactions'
+  const [activeTab, setActiveTab] = useState('contributions') // 'contributions' | 'expenses' | 'borrowed' | 'transactions'
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState(null)
@@ -35,6 +39,7 @@ export default function GroupActivity() {
   const [groupSummary, setGroupSummary] = useState(null)
   const [expenses, setExpenses] = useState([])
   const [transactions, setTransactions] = useState([])
+  const [borrowed, setBorrowed] = useState([])
 
   // Month state for contributions tab
   const today = useMemo(() => currentMonth(), [])
@@ -51,14 +56,16 @@ export default function GroupActivity() {
   async function loadInitialData() {
     setError(null)
     try {
-      const [summaryRes, expensesRes, transRes] = await Promise.all([
+      const [summaryRes, expensesRes, transRes, borrowedRes] = await Promise.all([
         getGroupSummary(),
         getExpenses(),
         getTransactions(),
+        getBorrowed(),
       ])
       setGroupSummary(summaryRes)
       setExpenses(expensesRes.items || [])
       setTransactions(transRes || [])
+      setBorrowed(borrowedRes.items || [])
 
       // Initial month contributions load
       const mYear = summaryRes?.currentMonth?.year ?? today.year
@@ -81,15 +88,17 @@ export default function GroupActivity() {
     setRefreshing(true)
     setError(null)
     try {
-      const [summaryRes, expensesRes, transRes, mRes] = await Promise.all([
+      const [summaryRes, expensesRes, transRes, borrowedRes, mRes] = await Promise.all([
         getGroupSummary(),
         getExpenses(),
         getTransactions(),
+        getBorrowed(),
         getMonthContributions(selectedMonth.year, selectedMonth.month),
       ])
       setGroupSummary(summaryRes)
       setExpenses(expensesRes.items || [])
       setTransactions(transRes || [])
+      setBorrowed(borrowedRes.items || [])
       setMonthData(mRes)
     } catch (err) {
       setError(err?.response?.data?.message || err?.message || 'Unable to refresh group activity.')
@@ -133,6 +142,7 @@ export default function GroupActivity() {
   const totalMembers = groupSummary?.activeMembers ?? 0
   const totalCollected = groupSummary?.totalCollected ?? 0
   const totalExpenses = groupSummary?.totalExpenses ?? 0
+  const currentlyBorrowed = groupSummary?.currentlyBorrowed ?? 0
   const currentBalance = groupSummary?.currentBalance ?? 0
 
   return (
@@ -145,7 +155,7 @@ export default function GroupActivity() {
       />
 
       {/* Part 10: Group Summary */}
-      <dl className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <dl className="grid grid-cols-2 gap-4 lg:grid-cols-5">
         <StatCard
           icon={Users}
           label="Group Members"
@@ -167,17 +177,24 @@ export default function GroupActivity() {
           tone="text-danger-700"
         />
         <StatCard
+          icon={HandCoins}
+          label="Currently Borrowed"
+          value={formatRupees(currentlyBorrowed)}
+          hint="Not yet returned"
+        />
+        <StatCard
           icon={Wallet}
-          label="Current Balance"
+          label="Available Balance"
           value={formatRupees(currentBalance)}
-          hint="Funds available"
+          hint="Collected − expenses − borrowed"
           tone={currentBalance < 0 ? 'text-danger-700' : 'text-success-700'}
+          className="col-span-2 lg:col-span-1"
         />
       </dl>
 
       {/* Tab Controls */}
       <div className="border-b border-slate-200">
-        <nav className="-mb-px flex space-x-6" aria-label="Tabs">
+        <nav className="-mb-px flex space-x-6 overflow-x-auto" aria-label="Tabs">
           <button
             type="button"
             onClick={() => setActiveTab('contributions')}
@@ -199,6 +216,17 @@ export default function GroupActivity() {
             }`}
           >
             Expenses ({expenses.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('borrowed')}
+            className={`whitespace-nowrap pb-3 text-sm font-semibold border-b-2 transition-colors ${
+              activeTab === 'borrowed'
+                ? 'border-primary-600 text-primary-600'
+                : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
+            }`}
+          >
+            Borrowed ({borrowed.length})
           </button>
           <button
             type="button"
@@ -280,7 +308,10 @@ export default function GroupActivity() {
                       return (
                         <tr key={c.id} className="hover:bg-slate-50/50">
                           <td className="py-3 pr-3 font-medium text-slate-900">
-                            {c.member?.name || c.name}
+                            <div className="flex items-center gap-2.5">
+                              <Avatar src={c.member?.profileImageUrl} name={c.member?.name || c.name} size="xs" />
+                              <span>{c.member?.name || c.name}</span>
+                            </div>
                           </td>
                           <td className="px-3 py-3 text-slate-600">
                             {c.label || monthLabel(selectedMonth.year, selectedMonth.month)}
@@ -353,11 +384,14 @@ export default function GroupActivity() {
                   return (
                     <li key={c.id} className="py-3 first:pt-0 last:pb-0 space-y-2">
                       <div className="flex items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="font-semibold text-slate-900 truncate">{c.member?.name || c.name}</p>
-                          <p className="text-xs text-slate-500">
-                            {c.label} {paymentDateLabel ? `· Paid ${paymentDateLabel}` : ''}
-                          </p>
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <Avatar src={c.member?.profileImageUrl} name={c.member?.name || c.name} size="sm" />
+                          <div className="min-w-0">
+                            <p className="font-semibold text-slate-900 truncate">{c.member?.name || c.name}</p>
+                            <p className="text-xs text-slate-500">
+                              {c.label} {paymentDateLabel ? `· Paid ${paymentDateLabel}` : ''}
+                            </p>
+                          </div>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
                           {isPaid && <Badge variant="success">PAID</Badge>}
@@ -456,12 +490,28 @@ export default function GroupActivity() {
         </Card>
       )}
 
-      {/* TAB 3: TRANSACTIONS */}
+      {/* TAB 3: BORROWED (read-only) */}
+      {activeTab === 'borrowed' && (
+        <Card title="Borrowed Money">
+          <p className="-mt-2 mb-4 text-xs text-slate-500">
+            Group money temporarily given to members. It is not an expense and returns to the fund when paid back.
+          </p>
+          {borrowed.length === 0 ? (
+            <EmptyState icon={HandCoins} title="No borrowed money">
+              Nobody has borrowed money from the group.
+            </EmptyState>
+          ) : (
+            <BorrowedList items={borrowed} />
+          )}
+        </Card>
+      )}
+
+      {/* TAB 4: TRANSACTIONS */}
       {activeTab === 'transactions' && (
         <Card title="Transaction Ledger">
           {transactions.length === 0 ? (
             <EmptyState icon={Wallet} title="No transactions yet">
-              Paid contributions and recorded expenses will appear here.
+              Paid contributions, expenses and borrowed money will appear here.
             </EmptyState>
           ) : (
             <>

@@ -3,6 +3,7 @@ import { ArrowDownLeft, ArrowLeftRight, ArrowUpRight } from 'lucide-react'
 import Card from '../Card'
 import EmptyState from '../EmptyState'
 import { formatRelativeDate, formatSignedRupees } from '../../utils/format'
+import { transactionTypeLabel } from '../../utils/transactions'
 
 // Latest money movements. Green "+" = money received, red "−" = money spent.
 // The sign and the arrow icon mean colour is never the only clue.
@@ -35,7 +36,7 @@ export default function TransactionList({ transactions }) {
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium text-slate-800">{t.title}</p>
                   <p className="text-xs text-slate-500">
-                    {isIn ? 'Contribution' : 'Expense'} · {formatRelativeDate(t.date)}
+                    {transactionTypeLabel(t)} · {formatRelativeDate(t.date)}
                   </p>
                 </div>
                 <span className={`shrink-0 text-sm font-semibold ${isIn ? 'text-success-700' : 'text-danger-700'}`}>

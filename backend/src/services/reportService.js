@@ -1,5 +1,5 @@
 // Financial reports for the admin. Everything here is worked out from the existing
-// MonthlyContribution and Expense records — nothing is stored separately.
+// MonthlyContribution, Expense and Borrowed records — nothing is stored separately.
 const prisma = require('../config/prisma');
 const validate = require('../utils/validate');
 const { toDecimal, toMoney, percentage } = require('../utils/money');
@@ -77,7 +77,7 @@ async function getReport(query) {
 
   return {
     period: months ? String(months) : 'all',
-    hasData: anyContribution > 0 || anyExpense > 0, // anything recorded at all (for the empty state)
+    hasData: anyContribution > 0 || anyExpense > 0 || fund.totalBorrowed > 0, // anything recorded at all (for the empty state)
     totals: {
       totalExpected: toMoney(totalExpected),
       totalBaseCollected: toMoney(totalBaseCollected),
@@ -86,7 +86,10 @@ async function getReport(query) {
       totalPending: toMoney(totalExpected.minus(totalBaseCollected)),
       totalExpenses: toMoney(totalExpenses),
       net: toMoney(totalCollected.minus(totalExpenses)), // collected − spent within the period
-      currentBalance: fund.currentBalance, // all-time balance (same as the dashboard)
+      // Borrowed money is a current position, so these are always all-time (same as the dashboard).
+      currentlyBorrowed: fund.currentlyBorrowed,
+      totalReturnedBorrowed: fund.totalReturnedBorrowed,
+      currentBalance: fund.currentBalance, // available balance: collected − expenses − currently borrowed
     },
     contributions: {
       paidRecords: paidCount,

@@ -15,7 +15,6 @@ router.get('/my-summary', contributionController.mySummary);
 
 // Group transparency: all authenticated members can view group contribution records
 router.get('/month/:year/:month', contributionController.getMonth);
-router.get('/history', contributionController.history);
 
 // Admin-only actions
 router.post('/create-month', requireAdmin, contributionController.createMonth);

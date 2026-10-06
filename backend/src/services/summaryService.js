@@ -68,15 +68,18 @@ async function getCurrentMonthSummary() {
   return getMonthSummary(year, month);
 }
 
-// Whole-fund totals.
-// Current balance = money actually received (PAID base + fines) − money spent.
-// Unpaid contributions and pending verifications are NOT counted financially.
+// Whole-fund totals. This is the single source of truth for the group's money.
+//   Total collected   = PAID contributions (base + fines). Unpaid/pending/declined never count.
+//   Currently borrowed = borrowed money not yet returned (it is NOT an expense)
+//   Available balance  = total collected − total expenses − currently borrowed
+// (returned borrowed money is back in the fund, so it is not subtracted.)
 async function getFundTotals() {
-  const [activeMembers, expected, collected, expenses, pendingVerifications] = await Promise.all([
+  const [activeMembers, expected, collected, expenses, borrowed, pendingVerifications] = await Promise.all([
     prisma.user.count({ where: { role: 'MEMBER', isActive: true } }),
     prisma.monthlyContribution.aggregate({ _sum: { amount: true } }),
     prisma.monthlyContribution.aggregate({ where: { status: 'PAID' }, _sum: { amount: true, fineAmount: true } }),
     prisma.expense.aggregate({ _sum: { amount: true } }),
+    prisma.borrowed.groupBy({ by: ['status'], _sum: { amount: true } }),
     prisma.paymentVerification.count({ where: { status: 'PENDING' } }),
   ]);
 
@@ -85,6 +88,9 @@ async function getFundTotals() {
   const totalFinesCollected = toDecimal(collected._sum.fineAmount || 0);
   const totalCollected = totalBaseCollected.plus(totalFinesCollected);
   const totalExpenses = toDecimal(expenses._sum.amount);
+  const borrowedSum = (status) => toDecimal(borrowed.find((b) => b.status === status)?._sum.amount);
+  const currentlyBorrowed = borrowedSum('BORROWED');
+  const totalReturnedBorrowed = borrowedSum('RETURNED');
 
   return {
     totalMembers: activeMembers,
@@ -94,7 +100,10 @@ async function getFundTotals() {
     totalCollected: toMoney(totalCollected),
     totalPending: toMoney(totalExpected.minus(totalBaseCollected)),
     totalExpenses: toMoney(totalExpenses),
-    currentBalance: toMoney(totalCollected.minus(totalExpenses)),
+    totalBorrowed: toMoney(currentlyBorrowed.plus(totalReturnedBorrowed)), // every amount ever lent
+    totalReturnedBorrowed: toMoney(totalReturnedBorrowed),
+    currentlyBorrowed: toMoney(currentlyBorrowed),
+    currentBalance: toMoney(totalCollected.minus(totalExpenses).minus(currentlyBorrowed)), // available balance
     pendingVerifications,
   };
 }
@@ -137,6 +146,7 @@ async function getGroupSummary() {
     activeMembers: totals.totalMembers,
     totalCollected: totals.totalCollected,
     totalExpenses: totals.totalExpenses,
+    currentlyBorrowed: totals.currentlyBorrowed,
     currentBalance: totals.currentBalance,
     currentMonth,
     recentExpenses: recentExpenses.map((e) => ({

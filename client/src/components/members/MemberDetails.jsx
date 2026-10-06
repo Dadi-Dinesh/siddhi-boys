@@ -3,6 +3,7 @@ import { AlertCircle } from 'lucide-react'
 import { getMember } from '../../services/memberService'
 import { getErrorMessage } from '../../services/api'
 import { formatDate, formatRupees } from '../../utils/format'
+import Avatar from '../Avatar'
 import { StatusBadge } from '../contributions/ContributionStatus'
 import Loading from '../Loading'
 import { MemberStatusBadge } from './MemberStatus'
@@ -30,14 +31,27 @@ export default function MemberDetails({ memberId }) {
     )
 
   const { member, summary, paymentHistory } = state.data
+  const phoneDisplay = member.phoneNumber || member.phone
+
   return (
     <div className="mt-1 space-y-5">
-      <div>
-        <p className="text-sm text-slate-500">{member.email}</p>
-        {member.phone && <p className="text-sm text-slate-500">{member.phone}</p>}
-        <div className="mt-2 flex items-center gap-2 text-sm text-slate-600">
-          Member <MemberStatusBadge isActive={member.isActive} />
-          <span className="text-slate-400">· Joined {formatDate(member.createdAt)}</span>
+      {/* Member Profile Card */}
+      <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 rounded-xl border border-slate-200 bg-slate-50/60 p-4 text-center sm:text-left">
+        <Avatar src={member.profileImageUrl} name={member.name} size="xl" />
+        <div className="min-w-0 flex-1">
+          <h2 className="text-lg font-bold text-slate-900">{member.name}</h2>
+          <div className="mt-1 flex flex-wrap items-center justify-center sm:justify-start gap-x-3 gap-y-1 text-sm text-slate-600">
+            <span className="font-medium text-slate-900 tabular-nums">
+              {phoneDisplay || <span className="text-slate-400 italic font-normal">Phone not added</span>}
+            </span>
+            <span className="text-slate-300">·</span>
+            <span className="text-slate-600">{member.email}</span>
+          </div>
+          <div className="mt-2.5 flex items-center justify-center sm:justify-start gap-2 text-xs text-slate-500">
+            <span>Member</span>
+            <MemberStatusBadge isActive={member.isActive} />
+            <span className="text-slate-400">· Joined {formatDate(member.createdAt)}</span>
+          </div>
         </div>
       </div>
 

@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import { AlertCircle, Calendar, CheckCircle2, Clock, Eye, ImageIcon, RotateCcw, UploadCloud, X, XCircle } from 'lucide-react'
+import { AlertCircle, CheckCircle2, Clock, Eye, ImageIcon, RotateCcw, UploadCloud, X, XCircle } from 'lucide-react'
 import { submitPaymentVerification } from '../../services/paymentVerificationService'
 import { getErrorMessage } from '../../services/api'
 import { formatDate, formatDateLong, formatRupees, todayInputDate } from '../../utils/format'
@@ -28,7 +28,6 @@ export default function MemberPaymentActionCard({ record, onSubmitted }) {
   const verification = record.verification
   const isPending = !isPaid && verification?.status === 'PENDING'
   const isDeclined = !isPaid && verification?.status === 'DECLINED'
-  const isUnpaidNew = !isPaid && (!verification || (isDeclined && isResubmitting))
 
   function handleFileChange(e) {
     const selected = e.target.files?.[0]

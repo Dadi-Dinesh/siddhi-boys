@@ -53,7 +53,7 @@ export default function Transactions() {
     <div className="space-y-6">
       <PageHeader
         title="Transactions"
-        subtitle="Complete history of money collected and spent"
+        subtitle="Complete history of money collected, spent and borrowed"
         actions={<RefreshButton onClick={handleRefresh} refreshing={refreshing} disabled={status === 'loading'} />}
       />
 
@@ -72,22 +72,22 @@ export default function Transactions() {
       {status === 'ready' && (
         <>
           {/* All-time totals from the backend (same numbers as the dashboard) */}
-          <dl className="grid grid-cols-2 gap-3 lg:grid-cols-3">
-            <StatCard label="Money in" value={formatRupees(data.moneyIn)} hint="Paid contributions" />
-            <StatCard label="Money out" value={formatRupees(data.moneyOut)} hint="Expenses" />
+          <dl className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <StatCard label="Total collected" value={formatRupees(data.totalCollected)} hint="Paid contributions" />
+            <StatCard label="Total expenses" value={formatRupees(data.totalExpenses)} hint="Money spent" />
+            <StatCard label="Currently borrowed" value={formatRupees(data.currentlyBorrowed)} hint="Not an expense" />
             <StatCard
-              label="Current balance"
+              label="Available balance"
               value={formatRupees(data.balance)}
-              hint="Money in − money out"
+              hint="Collected − expenses − borrowed"
               tone={data.balance < 0 ? 'text-danger-700' : 'text-success-700'}
-              className="col-span-2 lg:col-span-1"
             />
           </dl>
 
           <Card>
             {data.items.length === 0 ? (
               <EmptyState icon={ArrowLeftRight} title="No transactions yet">
-                Paid contributions and expenses will appear here.
+                Paid contributions, expenses and borrowed money will appear here.
               </EmptyState>
             ) : (
               <>
@@ -115,8 +115,8 @@ export default function Transactions() {
                 )}
 
                 <p className="mt-4 text-xs text-slate-500" role="status">
-                  Showing {visible.length} of {data.items.length} transactions. To change a record, use the Contributions or
-                  Expenses page.
+                  Showing {visible.length} of {data.items.length} transactions. To change a record, use the Contributions,
+                  Expenses or Borrowed page.
                 </p>
               </>
             )}

@@ -8,9 +8,10 @@ async function loadLedger() {
   const [items, summary] = await Promise.all([getTransactions(), getDashboardSummary()])
   return {
     items,
-    moneyIn: summary.totalCollected, // all PAID contributions
-    moneyOut: summary.totalExpenses, // all expenses
-    balance: summary.currentBalance, // moneyIn − moneyOut, worked out by the backend
+    totalCollected: summary.totalCollected, // all PAID contributions (base + fines)
+    totalExpenses: summary.totalExpenses, // all expenses
+    currentlyBorrowed: summary.currentlyBorrowed, // borrowed and not yet returned
+    balance: summary.currentBalance, // available balance, worked out by the backend
   }
 }
 

@@ -10,6 +10,7 @@ import Login from './pages/Login'
 import AdminDashboard from './pages/admin/AdminDashboard'
 import Contributions from './pages/admin/Contributions'
 import Expenses from './pages/admin/Expenses'
+import Borrowed from './pages/admin/Borrowed'
 import Members from './pages/admin/Members'
 import Transactions from './pages/admin/Transactions'
 import Settings from './pages/admin/Settings'
@@ -46,6 +47,7 @@ export default function App() {
             <Route path="contributions" element={<Contributions />} />
             <Route path="payment-verifications" element={<PaymentVerifications />} />
             <Route path="expenses" element={<Expenses />} />
+            <Route path="borrowed" element={<Borrowed />} />
             <Route path="transactions" element={<Transactions />} />
             <Route path="reports" element={<Reports />} />
             <Route path="members" element={<Members />} />

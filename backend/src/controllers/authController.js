@@ -10,8 +10,17 @@ async function login(req, res) {
 
 // GET /api/auth/me  (authenticate middleware has already loaded req.user)
 async function me(req, res) {
-  const { id, name, email, phone, role } = req.user;
-  sendSuccess(res, { id, name, email, phone, role });
+  const { id, name, email, phone, phoneNumber, profileImageUrl, role } = req.user;
+  const phoneVal = phoneNumber || phone || null;
+  sendSuccess(res, {
+    id,
+    name,
+    email,
+    phone: phoneVal,
+    phoneNumber: phoneVal,
+    profileImageUrl: profileImageUrl || null,
+    role,
+  });
 }
 
 // Logout needs no API in V1: the frontend simply deletes its stored token.

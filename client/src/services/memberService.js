@@ -14,15 +14,33 @@ export async function getMember(id) {
   return data.data
 }
 
-// { name, email, password, phone? } — the server always gives new accounts the MEMBER role.
+function toPayload(data) {
+  if (data instanceof FormData) return data
+  if (data?.photo instanceof File || data?.file instanceof File) {
+    const fd = new FormData()
+    Object.entries(data).forEach(([k, v]) => {
+      if (v !== undefined && v !== null) {
+        if (k === 'photo' || k === 'file') {
+          fd.append('photo', v)
+        } else {
+          fd.append(k, v)
+        }
+      }
+    })
+    return fd
+  }
+  return data
+}
+
+// { name, email, phone / phoneNumber, photo? } — the server gives new accounts the MEMBER role and default password.
 export async function createMember(member) {
-  const { data } = await api.post('/members', member)
+  const { data } = await api.post('/members', toPayload(member))
   return data.data
 }
 
-// Any of { name, email, phone, isActive, password }. Leave password out to keep it.
+// Any of { name, email, phone / phoneNumber, photo?, isActive, password }. Leave password out to keep it.
 export async function updateMember(id, changes) {
-  const { data } = await api.put(`/members/${id}`, changes)
+  const { data } = await api.put(`/members/${id}`, toPayload(changes))
   return data.data
 }
 

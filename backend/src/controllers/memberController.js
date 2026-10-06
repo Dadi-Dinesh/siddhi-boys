@@ -13,13 +13,13 @@ async function getOne(req, res) {
 
 // POST /api/members
 async function create(req, res) {
-  const member = await memberService.createMember(req.body || {});
+  const member = await memberService.createMember(req.body || {}, req.file);
   sendSuccess(res, member, 'Member added successfully', 201);
 }
 
 // PUT /api/members/:id
 async function update(req, res) {
-  const member = await memberService.updateMember(req.params.id, req.body || {});
+  const member = await memberService.updateMember(req.params.id, req.body || {}, req.file);
   sendSuccess(res, member, 'Member updated successfully');
 }
 

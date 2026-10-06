@@ -2,7 +2,7 @@ const path = require('path');
 // Load the single unified .env from the project root, with fallback to local backend/.env
 require('dotenv').config({ path: path.resolve(__dirname, '../../.env'), quiet: true });
 require('dotenv').config({ quiet: true });
-const { checkEnvironment } = require('./config/env');
+const { checkEnvironment, environmentWarnings } = require('./config/env');
 
 // Stop immediately with a clear message if required settings are missing or unsafe.
 const problems = checkEnvironment();
@@ -12,6 +12,7 @@ if (problems.length) {
   console.error('See root .env.example');
   process.exit(1);
 }
+environmentWarnings().forEach((w) => console.warn(`Warning: ${w}`));
 
 const app = require('./app');
 const prisma = require('./config/prisma');

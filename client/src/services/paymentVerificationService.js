@@ -27,24 +27,6 @@ export async function adminMarkPaidWithScreenshot({ contributionId, file, paymen
   return data.data
 }
 
-// Get member's own verification records
-export async function getMyVerifications() {
-  const { data } = await api.get('/payment-verifications/my')
-  return data.data.items
-}
-
-// Get member's latest verification for the current month
-export async function getMyCurrentVerification() {
-  const { data } = await api.get('/payment-verifications/my/current')
-  return data.data
-}
-
-// Get single verification details
-export async function getVerification(id) {
-  const { data } = await api.get(`/payment-verifications/${id}`)
-  return data.data
-}
-
 // Admin: list all verifications (supports ?status=PENDING)
 export async function listVerifications(params = {}) {
   const { data } = await api.get('/admin/payment-verifications', { params })

@@ -21,15 +21,19 @@ if (process.env.TRUST_PROXY) app.set('trust proxy', Number(process.env.TRUST_PRO
 // Standard security headers (and hides the "X-Powered-By: Express" header).
 app.use(helmet());
 
-// Only allow requests from our frontend (or local dev ports).
+// In production only the deployed frontend may call the API. CLIENT_URL can list several
+// addresses separated by commas, e.g. "https://siddhiboys.vercel.app,https://www.example.com".
+// During development any origin is allowed.
 const isProd = process.env.NODE_ENV === 'production';
+const allowedOrigins = (process.env.CLIENT_URL || '')
+  .split(',')
+  .map((url) => url.trim().replace(/\/+$/, ''))
+  .filter(Boolean);
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin || !isProd) return callback(null, true);
-      const allowed = [process.env.CLIENT_URL, 'http://localhost:5173', 'http://127.0.0.1:5173'].filter(Boolean);
-      if (allowed.includes(origin)) return callback(null, true);
-      return callback(new Error(`CORS blocked for origin: ${origin}`));
+      if (!origin || !isProd || allowedOrigins.includes(origin)) return callback(null, true);
+      return callback(null, false); // browser blocks the response; no error noise in the logs
     },
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
     allowedHeaders: ['Content-Type', 'Authorization'],
@@ -45,6 +49,7 @@ app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/members', require('./routes/memberRoutes'));
 app.use('/api/contributions', require('./routes/contributionRoutes'));
 app.use('/api/expenses', require('./routes/expenseRoutes'));
+app.use('/api/borrowed', require('./routes/borrowedRoutes'));
 app.use('/api/dashboard', require('./routes/dashboardRoutes'));
 app.use('/api/transactions', require('./routes/transactionRoutes'));
 app.use('/api/settings', require('./routes/settingsRoutes'));

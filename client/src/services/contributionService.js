@@ -17,11 +17,6 @@ export async function createMonth(year, month) {
   return { result: data.data, message: data.message }
 }
 
-export async function markPaid(id) {
-  const { data } = await api.patch(`/contributions/${id}/pay`)
-  return data.data
-}
-
 export async function markUnpaid(id) {
   const { data } = await api.patch(`/contributions/${id}/unpay`)
   return data.data

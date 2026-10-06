@@ -39,12 +39,27 @@ function password(value) {
   return value;
 }
 
-function phone(value) {
-  const cleaned = text(value, 'Phone number', { required: false, max: 20 });
-  if (cleaned && !/^[+\d][\d\s-]{6,19}$/.test(cleaned)) {
-    throw new AppError('Please enter a valid phone number');
+function phoneNumber(value, { required = false } = {}) {
+  if (value === undefined || value === null || (typeof value === 'string' && !value.trim())) {
+    if (required) throw new AppError('Phone number is required');
+    return null;
   }
-  return cleaned;
+  const str = String(value).trim();
+  const digits = str.replace(/\D/g, '');
+  let core = digits;
+  if (digits.length === 12 && digits.startsWith('91')) {
+    core = digits.slice(2);
+  } else if (digits.length === 11 && digits.startsWith('0')) {
+    core = digits.slice(1);
+  }
+  if (!/^[6-9]\d{9}$/.test(core)) {
+    throw new AppError('Please enter a valid 10-digit Indian mobile number (e.g. 9876543210 or +91 98765 43210)');
+  }
+  return `+91 ${core}`;
+}
+
+function phone(value, options = { required: false }) {
+  return phoneNumber(value, options);
 }
 
 function boolean(value, field) {
@@ -143,6 +158,7 @@ module.exports = {
   email,
   password,
   phone,
+  phoneNumber,
   boolean,
   amount,
   nonNegativeAmount,

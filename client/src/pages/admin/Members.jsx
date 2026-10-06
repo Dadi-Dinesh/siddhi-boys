@@ -69,7 +69,12 @@ export default function Members() {
       else await createMember(fields)
       await reload()
       setFormOpen(false)
-      showFlash('success', editing ? 'Member updated successfully.' : 'Member added successfully.')
+      showFlash(
+        'success',
+        editing
+          ? 'Member updated successfully.'
+          : `Member added. They can log in with ${fields.email} and the default password (username@123).`,
+      )
     } catch (err) {
       if (err.response?.status === 409) {
         setEmailTaken(true) // shown under the Email field

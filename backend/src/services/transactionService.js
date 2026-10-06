@@ -1,6 +1,8 @@
 // The ledger: every movement of money, newest first.
 //   IN  = a PAID contribution (dated by when it was paid)
 //   OUT = an expense (dated by the expense date)
+//   OUT = money borrowed by a member (BORROWED, dated by the borrowed date) — not an expense
+//   IN  = borrowed money given back (BORROW_RETURN, dated by the returned date)
 // UNPAID contributions are not transactions, because no money moved.
 const prisma = require('../config/prisma');
 const { AppError } = require('../utils/response');
@@ -9,15 +11,16 @@ const { ZERO, toMoney, toDecimal } = require('../utils/money');
 const { formatMonth, toDateString, periodRange } = require('../utils/date');
 
 async function listTransactions(query) {
-  const type = query.type ? validate.oneOf(query.type, 'Type', ['CONTRIBUTION', 'EXPENSE']) : null;
+  const type = query.type ? validate.oneOf(query.type, 'Type', ['CONTRIBUTION', 'EXPENSE', 'BORROWED']) : null;
   const year = query.year ? validate.year(query.year) : null;
   const month = query.month ? validate.month(query.month) : null;
   const memberId = query.memberId ? validate.id(query.memberId, 'Member') : null;
   if (month && !year) throw new AppError('Please choose a year when filtering by month');
 
-  // A member filter only applies to contributions (expenses don't belong to a member).
-  const includeContributions = type !== 'EXPENSE';
-  const includeExpenses = type !== 'CONTRIBUTION' && !memberId;
+  // A member filter applies to contributions and borrowed money (expenses don't belong to a member).
+  const includeContributions = !type || type === 'CONTRIBUTION';
+  const includeExpenses = (!type || type === 'EXPENSE') && !memberId;
+  const includeBorrowed = !type || type === 'BORROWED';
 
   const contributionWhere = { status: 'PAID' };
   if (year) contributionWhere.paidAt = periodRange(year, month, { utc: false });
@@ -26,15 +29,62 @@ async function listTransactions(query) {
   const expenseWhere = {};
   if (year) expenseWhere.date = periodRange(year, month, { utc: true });
 
-  const [contributions, expenses] = await Promise.all([
+  // A borrowed record can add two rows (the loan and its return), each filtered by its own date.
+  const borrowedWhere = memberId ? { memberId } : {};
+  const inPeriod = (date) => {
+    if (!year) return true;
+    const range = periodRange(year, month, { utc: true });
+    return date >= range.gte && date < range.lt;
+  };
+
+  let totalIn = ZERO;
+  let totalOut = ZERO;
+
+  const [contributions, expenses, borrowed] = await Promise.all([
     includeContributions
       ? prisma.monthlyContribution.findMany({ where: contributionWhere, include: { user: { select: { id: true, name: true } } } })
       : [],
     includeExpenses ? prisma.expense.findMany({ where: expenseWhere }) : [],
+    includeBorrowed
+      ? prisma.borrowed.findMany({ where: borrowedWhere, include: { member: { select: { id: true, name: true } } } })
+      : [],
   ]);
 
-  let totalIn = ZERO;
-  let totalOut = ZERO;
+  const borrowedRows = [];
+  for (const b of borrowed) {
+    if (inPeriod(b.borrowedAt)) {
+      totalOut = totalOut.plus(b.amount);
+      borrowedRows.push({
+        id: b.id,
+        type: 'BORROWED',
+        direction: 'OUT',
+        title: `${b.member.name} borrowed from the group`,
+        description: b.purpose,
+        amount: toMoney(b.amount),
+        date: toDateString(b.borrowedAt),
+        member: b.member,
+        period: null,
+        sortDate: b.borrowedAt,
+        createdAt: b.createdAt,
+      });
+    }
+    if (b.status === 'RETURNED' && b.returnedAt && inPeriod(b.returnedAt)) {
+      totalIn = totalIn.plus(b.amount);
+      borrowedRows.push({
+        id: `${b.id}-return`,
+        type: 'BORROW_RETURN',
+        direction: 'IN',
+        title: `${b.member.name} returned borrowed money`,
+        description: b.purpose,
+        amount: toMoney(b.amount),
+        date: toDateString(b.returnedAt),
+        member: b.member,
+        period: null,
+        sortDate: b.returnedAt,
+        createdAt: b.updatedAt,
+      });
+    }
+  }
 
   const items = [
     ...contributions.map((c) => {
@@ -79,6 +129,7 @@ async function listTransactions(query) {
         createdAt: e.createdAt,
       };
     }),
+    ...borrowedRows,
   ]
     // Newest first. If two items have the same date, the one entered later comes first.
     .sort((a, b) => b.sortDate - a.sortDate || b.createdAt - a.createdAt)

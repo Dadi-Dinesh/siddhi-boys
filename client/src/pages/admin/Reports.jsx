@@ -22,7 +22,7 @@ const PERIODS = [
 ]
 
 // Admin-only financial report. Every number comes from GET /api/reports/summary,
-// which builds it from the existing contribution and expense records.
+// which builds it from the existing contribution, expense and borrowed records.
 export default function Reports() {
   const [period, setPeriod] = useState('all')
   const loader = useCallback(() => getReport(period), [period]) // reloads when the period changes
@@ -71,7 +71,7 @@ export default function Reports() {
       </div>
 
       {status === 'loading' && (
-        <SkeletonBlocks label="Loading financial reports..." stats={4} rows={6} statsClassName="grid-cols-2 xl:grid-cols-4" />
+        <SkeletonBlocks label="Loading financial reports..." stats={6} rows={6} statsClassName="grid-cols-2 xl:grid-cols-3" />
       )}
 
       {status === 'error' && (
@@ -88,34 +88,32 @@ export default function Reports() {
 
       {status === 'ready' && report.hasData && (
         <div className={`space-y-6 transition-opacity ${updating ? 'opacity-60' : ''}`} aria-busy={updating || undefined}>
-          {/* Overall summary */}
-          <dl className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+          {/* Overall summary. Collected/expenses/fines follow the chosen period; borrowed money and the
+              available balance are always current (all time), the same numbers as the dashboard. */}
+          <dl className="grid grid-cols-2 gap-3 xl:grid-cols-3">
             <StatCard
               label="Total collected"
               value={formatRupees(report.totals.totalCollected)}
-              hint={Number(report.totals.totalFinesCollected || 0) > 0 ? `Includes ${formatRupees(report.totals.totalFinesCollected)} fines` : 'Paid contributions'}
+              hint={`Paid contributions · ${formatRupees(report.totals.totalPending)} pending`}
               tone="text-success-700"
             />
             <StatCard label="Total expenses" value={formatRupees(report.totals.totalExpenses)} hint="Money spent" />
-            {allTime ? (
-              <StatCard
-                label="Current balance"
-                value={formatRupees(report.totals.currentBalance)}
-                hint="Collected − expenses"
-                tone={report.totals.currentBalance < 0 ? 'text-danger-700' : 'text-success-700'}
-              />
-            ) : (
-              <StatCard
-                label="Net for period"
-                value={formatRupees(report.totals.net)}
-                hint={`Current balance: ${formatRupees(report.totals.currentBalance)}`}
-                tone={report.totals.net < 0 ? 'text-danger-700' : 'text-success-700'}
-              />
-            )}
+            <StatCard label="Total fines" value={formatRupees(report.totals.totalFinesCollected)} hint="Late fines collected" />
             <StatCard
-              label="Total expected"
-              value={formatRupees(report.totals.totalExpected)}
-              hint={`${formatRupees(report.totals.totalPending)} pending`}
+              label="Currently borrowed"
+              value={formatRupees(report.totals.currentlyBorrowed)}
+              hint="Not yet returned"
+            />
+            <StatCard
+              label="Total returned borrowed"
+              value={formatRupees(report.totals.totalReturnedBorrowed)}
+              hint="Back in the fund"
+            />
+            <StatCard
+              label="Available balance"
+              value={formatRupees(report.totals.currentBalance)}
+              hint={allTime ? 'Collected − expenses − borrowed' : `Net for period: ${formatRupees(report.totals.net)}`}
+              tone={report.totals.currentBalance < 0 ? 'text-danger-700' : 'text-success-700'}
             />
           </dl>
 

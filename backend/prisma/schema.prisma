@@ -1,4 +1,4 @@
-// Batch Fund database schema.
+// SiddhiBoys database schema.
 // After editing this file run:  npm run db:migrate
 
 generator client {
@@ -25,16 +25,19 @@ model User {
   name      String
   email     String   @unique
   password  String // bcrypt hash, never the plain password
-  phone     String? // optional
-  role      Role     @default(MEMBER)
-  isActive  Boolean  @default(true) // "deleting" a member sets this to false, so history is kept
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  phone           String? // legacy phone field
+  phoneNumber     String? // Indian mobile number, e.g. +91 9876543210
+  profileImageUrl String? // Cloudinary profile picture URL
+  role            Role     @default(MEMBER)
+  isActive        Boolean  @default(true) // "deleting" a member sets this to false, so history is kept
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   contributions          MonthlyContribution[]
   expenses               Expense[] // expenses this admin recorded
   submittedVerifications PaymentVerification[] @relation("SubmittedVerifications")
   reviewedVerifications  PaymentVerification[] @relation("ReviewedVerifications")
+  borrowed               Borrowed[] // money this member borrowed from the group
 }
 
 // Only one row is used (id = 1). Holds the default monthly amount,
@@ -126,4 +129,29 @@ model PaymentVerification {
   @@index([contributionId])
   @@index([status])
   @@index([submittedById])
+}
+
+enum BorrowedStatus {
+  BORROWED
+  RETURNED
+}
+
+// Group money temporarily given to a member. NOT an expense: while it is BORROWED
+// it is subtracted from the available balance; once RETURNED it no longer is.
+model Borrowed {
+  id         String         @id @default(uuid())
+  memberId   String
+  amount     Decimal        @db.Decimal(10, 2)
+  borrowedAt DateTime       @db.Date
+  purpose    String?
+  status     BorrowedStatus @default(BORROWED)
+  returnedAt DateTime?      @db.Date
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+
+  // Restrict: a member with borrowed records can't be hard-deleted.
+  member User @relation(fields: [memberId], references: [id], onDelete: Restrict)
+
+  @@index([memberId])
+  @@index([status])
 }

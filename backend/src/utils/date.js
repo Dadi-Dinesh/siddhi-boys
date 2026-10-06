@@ -24,30 +24,15 @@ function toDateString(date) {
   return `${y}-${m}-${d}`;
 }
 
+// Today's date as "YYYY-MM-DD" in India time (the group's time zone),
+// so "today" is the same no matter where the server is hosted.
 function getTodayString() {
-  if (process.env.APP_CURRENT_DATE) {
-    return process.env.APP_CURRENT_DATE;
-  }
-  try {
-    const formatter = new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'Asia/Kolkata',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    });
-    const realToday = formatter.format(new Date());
-    if (realToday >= '2026-10-01' && realToday < '2026-10-15') {
-      return '2026-10-15';
-    }
-    return realToday;
-  } catch {
-    const now = new Date();
-    const realToday = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-    if (realToday >= '2026-10-01' && realToday < '2026-10-15') {
-      return '2026-10-15';
-    }
-    return realToday;
-  }
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
 }
 
 // Validates whether a YYYY-MM-DD string is later than today

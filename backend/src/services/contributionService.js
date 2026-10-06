@@ -6,7 +6,7 @@ const { formatMonth, currentMonthYear, toDateString, formatDateLabel, calculateD
 const { getSettings } = require('./settingsService');
 const { getMonthSummary, getMemberTotals } = require('./summaryService');
 
-const memberSummarySelect = { id: true, name: true, email: true, isActive: true };
+const memberSummarySelect = { id: true, name: true, email: true, profileImageUrl: true, isActive: true };
 
 // Shapes a database record into the JSON the API returns.
 function formatContribution(c) {
@@ -38,7 +38,7 @@ function formatContribution(c) {
     result.verification = {
       id: v.id,
       status: v.status,
-      screenshotUrl: `/api/payment-verifications/${v.id}/screenshot`,
+      screenshotUrl: `/payment-verifications/${v.id}/screenshot`, // relative to the API base URL
       submittedByRole: v.submittedByRole,
       submittedAt: v.submittedAt,
       paymentDate: v.paymentDate ? toDateString(v.paymentDate) : null,
@@ -176,30 +176,6 @@ async function findContributionOrFail(id) {
   return contribution;
 }
 
-// Marks the existing record as PAID (never creates a second record).
-// If it is already paid, the original paid date is kept.
-async function markPaid(id) {
-  const contribution = await findContributionOrFail(id);
-  const alreadyPaid = contribution.status === 'PAID';
-  const updated = alreadyPaid
-    ? await prisma.monthlyContribution.findUnique({
-        where: { id },
-        include: {
-          user: { select: memberSummarySelect },
-          verifications: { orderBy: { createdAt: 'desc' }, take: 1 },
-        },
-      })
-    : await prisma.monthlyContribution.update({
-        where: { id },
-        data: { status: 'PAID', paidAt: new Date() },
-        include: {
-          user: { select: memberSummarySelect },
-          verifications: { orderBy: { createdAt: 'desc' }, take: 1 },
-        },
-      });
-  return { contribution: formatContribution(updated), message: alreadyPaid ? 'Already marked as paid' : 'Marked as paid' };
-}
-
 async function markUnpaid(id) {
   const contribution = await findContributionOrFail(id);
   const alreadyUnpaid = contribution.status === 'UNPAID';
@@ -234,25 +210,6 @@ async function markUnpaid(id) {
   return { contribution: formatContribution(updated), message: alreadyUnpaid ? 'Already marked as unpaid' : 'Marked as unpaid' };
 }
 
-// Admin/Member: records across all months. Optional filters: year, month, memberId, status.
-async function getHistory(query) {
-  const where = {};
-  if (query.year) where.year = validate.year(query.year);
-  if (query.month) where.month = validate.month(query.month);
-  if (query.memberId) where.userId = validate.id(query.memberId, 'Member');
-  if (query.status) where.status = validate.oneOf(query.status, 'Status', ['PAID', 'UNPAID']);
-
-  const records = await prisma.monthlyContribution.findMany({
-    where,
-    include: {
-      user: { select: memberSummarySelect },
-      verifications: { orderBy: { createdAt: 'desc' }, take: 1 },
-    },
-    orderBy: [{ year: 'desc' }, { month: 'desc' }, { user: { name: 'asc' } }],
-  });
-  return { items: records.map(formatContribution), total: records.length };
-}
-
 // Member: only their own records. The user id always comes from the login token,
 // never from the request, so nobody can view someone else's history.
 async function getMyHistory(userId) {
@@ -281,5 +238,5 @@ async function getMySummary(userId) {
 }
 
 module.exports = {
-  formatContribution, createMonth, getMonth, markPaid, markUnpaid, getHistory, getMyHistory, getMySummary,
+  formatContribution, createMonth, getMonth, markUnpaid, getMyHistory, getMySummary,
 };

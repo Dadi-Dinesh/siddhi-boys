@@ -10,6 +10,8 @@ const publicUserSelect = {
   name: true,
   email: true,
   phone: true,
+  phoneNumber: true,
+  profileImageUrl: true,
   role: true,
   isActive: true,
 };
@@ -46,8 +48,17 @@ async function login(email, password) {
 
   const token = generateToken({ userId: user.id, role: user.role });
 
+  const phoneVal = user.phoneNumber || user.phone || null;
   return {
-    user: { id: user.id, name: user.name, email: user.email, role: user.role },
+    user: {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      phone: phoneVal,
+      phoneNumber: phoneVal,
+      profileImageUrl: user.profileImageUrl || null,
+      role: user.role,
+    },
     token,
   };
 }

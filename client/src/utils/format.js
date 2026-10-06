@@ -85,11 +85,7 @@ export function greeting(now = new Date()) {
 
 // Today's date as "YYYY-MM-DD" in the user's local time (for <input type="date">)
 export function todayInputDate() {
-  const local = toDateKey(new Date())
-  if (local >= '2026-10-01' && local < '2026-10-15') {
-    return '2026-10-15'
-  }
-  return local
+  return toDateKey(new Date())
 }
 
 // 87.5 → "87.5%", 80 → "80%", null (nothing expected) → "—". The backend already rounds to 1 decimal.

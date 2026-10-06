@@ -2,14 +2,16 @@
   "name": "siddhi-boys",
   "version": "1.0.0",
   "private": true,
-  "description": "Batch Fund App",
+  "description": "SiddhiBoys group fund app",
   "scripts": {
     "dev:backend": "npm --prefix backend run dev",
     "dev:client": "npm --prefix client run dev",
     "build:backend": "npm --prefix backend run build",
     "build:client": "npm --prefix client run build",
     "db:migrate": "npm --prefix backend run db:migrate",
-    "db:seed": "npm --prefix backend run db:seed",
-    "db:studio": "npm --prefix backend run db:studio"
+    "db:studio": "npm --prefix backend run db:studio",
+    "db:deploy": "npm --prefix backend run db:deploy",
+    "db:init": "npm --prefix backend run db:init",
+    "db:reset-data": "npm --prefix backend run db:reset-data --"
   }
 }
