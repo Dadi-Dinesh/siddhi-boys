@@ -86,8 +86,8 @@ export default function MemberForm({ member, onSubmit, onCancel, saving, serverE
       return
     }
 
-    if (file.size > 5 * 1024 * 1024) {
-      setErrors((errs) => ({ ...errs, photo: 'Photo size must be less than 5 MB.' }))
+    if (file.size > 4 * 1024 * 1024) {
+      setErrors((errs) => ({ ...errs, photo: 'Photo size must be less than 4 MB.' }))
       return
     }
 
@@ -157,7 +157,7 @@ export default function MemberForm({ member, onSubmit, onCancel, saving, serverE
         <div className="flex-1 text-center sm:text-left">
           <p className="text-sm font-semibold text-slate-800">Profile Photo</p>
           <p className="text-xs text-slate-500 mt-0.5">
-            Optional. JPG, PNG or WebP, up to 5 MB.
+            Optional. JPG, PNG or WebP, up to 4 MB.
           </p>
 
           <input

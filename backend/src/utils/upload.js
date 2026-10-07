@@ -5,8 +5,21 @@ const { cloudinary, isCloudinaryConfigured } = require('../config/cloudinary');
 
 const ALLOWED_MIMES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const ALLOWED_EXTS = new Set(['.jpg', '.jpeg', '.png', '.webp']);
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
+const MAX_FILE_SIZE = 4 * 1024 * 1024; // 4 MB: Vercel refuses request bodies over 4.5 MB
 const SCREENSHOT_FOLDER = 'siddhiboys/payment-screenshots';
+
+// Cloudinary's reason for a failed upload (e.g. "cloud_name mismatch", "Invalid api_key").
+// It never contains the API secret. Logged on the server (Vercel → Logs); users get a short message.
+function uploadError(kind, err) {
+  const reason = err?.error?.message || err?.message || 'no secure_url returned';
+  const code = err?.error?.http_code || err?.http_code || '';
+  console.error(`Cloudinary ${kind} upload failed: ${reason}${code ? ` (HTTP ${code})` : ''}`);
+  // 401 = Cloudinary rejected our credentials: retrying won't help, the server settings must be fixed.
+  if (code === 401) {
+    return new AppError('Image upload is not set up correctly on the server (Cloudinary settings). Please contact the admin.', 503);
+  }
+  return new AppError(`Could not upload the ${kind}. Please try again.`, 502);
+}
 
 const fileFilter = (req, file, cb) => {
   const ext = path.extname(file.originalname).toLowerCase();
@@ -39,7 +52,7 @@ function uploadScreenshotToCloudinary(file) {
       { folder: SCREENSHOT_FOLDER, type: 'authenticated', resource_type: 'image' },
       (err, result) => {
         if (err || !result?.secure_url) {
-          return reject(new AppError('Could not upload the screenshot. Please try again.', 502));
+          return reject(uploadError('screenshot', err));
         }
         resolve(result.secure_url);
       },
@@ -84,7 +97,7 @@ function uploadProfilePhotoToCloudinary(file) {
       },
       (err, result) => {
         if (err || !result?.secure_url) {
-          return reject(new AppError('Could not upload the profile photo. Please try again.', 502));
+          return reject(uploadError('profile photo', err));
         }
         resolve(result.secure_url);
       },

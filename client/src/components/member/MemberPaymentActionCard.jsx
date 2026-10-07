@@ -38,8 +38,8 @@ export default function MemberPaymentActionCard({ record, onSubmitted }) {
       return
     }
 
-    if (selected.size > 5 * 1024 * 1024) {
-      setError('File size must be 5MB or smaller.')
+    if (selected.size > 4 * 1024 * 1024) {
+      setError('File size must be 4MB or smaller.')
       return
     }
 
@@ -367,7 +367,7 @@ export default function MemberPaymentActionCard({ record, onSubmitted }) {
               >
                 <UploadCloud size={32} className="text-primary-600 mb-1.5" />
                 <p className="text-sm font-semibold text-slate-800">Click to upload payment screenshot</p>
-                <p className="text-xs text-slate-400 mt-1">PNG, JPG, or WebP up to 5MB</p>
+                <p className="text-xs text-slate-400 mt-1">PNG, JPG, or WebP up to 4MB</p>
                 <input
                   ref={fileInputRef}
                   type="file"

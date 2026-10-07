@@ -65,12 +65,20 @@ api.interceptors.response.use(
 
 // Turns any API error into a short, friendly message for the UI.
 // Raw Axios/server errors are never shown to the user.
+// The backend only ever sends safe { success: false, message } texts (unexpected errors are
+// already replaced by a generic message on the server), so its message is shown when present.
 export function getErrorMessage(error) {
   if (!error?.response) return 'Unable to connect to the server. Please try again.'
   const { status, data } = error.response
+  const message = typeof data?.message === 'string' && data.message.trim() ? data.message : null
+  if (message) return message
+  if (status === 401) return 'Please log in to continue.'
+  if (status === 403) return 'You do not have permission to do this.'
+  if (status === 404) return 'The requested item was not found.'
+  if (status === 409) return 'This conflicts with an existing record.'
+  if (status === 400 || status === 422) return 'Please check the details and try again.'
   if (status >= 500) return 'Something went wrong on the server. Please try again.'
-  if (status === 403 && !data?.message) return 'You do not have permission to do this.'
-  return data?.message || 'Something went wrong. Please try again.'
+  return 'Something went wrong. Please try again.'
 }
 
 export default api

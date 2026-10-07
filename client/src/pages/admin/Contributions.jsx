@@ -41,7 +41,9 @@ function useSelectedMonth() {
 
 // Friendly text for a failed Mark Paid / Mark Unpaid.
 function actionError(error) {
-  if (!error.response || error.response.status >= 500) return 'Unable to update payment status. Please try again.'
+  const status = error.response?.status
+  // Upload problems (502/503) keep the server's message, e.g. "Could not upload the screenshot".
+  if (!status || (status >= 500 && status !== 502 && status !== 503)) return 'Unable to update payment status. Please try again.'
   return getErrorMessage(error)
 }
 
@@ -105,6 +107,7 @@ export default function Contributions() {
   const [payModalTarget, setPayModalTarget] = useState(null)
   const [payLoading, setPayLoading] = useState(false)
   const [previewContribution, setPreviewContribution] = useState(null)
+  const handleMarkPaid = (contribution) => setPayModalTarget(contribution)
 
   // Clicking "Mark Paid" now opens the Verify Payment modal requiring a screenshot upload
   async function handleAdminPaySubmit({ contributionId, file, paymentDate, note }) {

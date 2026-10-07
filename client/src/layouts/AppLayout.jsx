@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
-import { NavLink, Outlet } from 'react-router-dom'
+import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { LogOut, Menu, X } from 'lucide-react'
 import GaneshaLogo from '../components/GaneshaLogo'
+import PageErrorBoundary from '../components/PageErrorBoundary'
 import Avatar from '../components/Avatar'
 import { useAuth } from '../hooks/useAuth'
 import { useGroup } from '../hooks/useGroup'
@@ -23,6 +24,7 @@ function Frame({ navItems }) {
   const groupName = group.data?.groupName
   const { user, logout } = useAuth()
   const [menuOpen, setMenuOpen] = useState(false)
+  const location = useLocation()
 
   // Close the mobile menu with the Escape key.
   useEffect(() => {
@@ -127,7 +129,10 @@ function Frame({ navItems }) {
       {/* min-w-0: a wide child can never push the page wider than the screen */}
       <main className="min-w-0 flex-1 px-4 py-6 md:ml-60 md:px-8 md:py-8">
         <div className="mx-auto max-w-6xl">
-          <Outlet />
+          {/* key: moving to another page clears a previous page's error */}
+          <PageErrorBoundary key={location.pathname}>
+            <Outlet />
+          </PageErrorBoundary>
         </div>
       </main>
     </div>

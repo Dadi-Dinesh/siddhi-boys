@@ -30,8 +30,8 @@ export default function AdminPayModal({ open, onClose, contribution, onSubmit, l
       return
     }
 
-    if (selected.size > 5 * 1024 * 1024) {
-      setError('File size must be 5MB or smaller')
+    if (selected.size > 4 * 1024 * 1024) {
+      setError('File size must be 4MB or smaller')
       return
     }
 
@@ -147,7 +147,7 @@ export default function AdminPayModal({ open, onClose, contribution, onSubmit, l
             >
               <UploadCloud size={28} className="text-slate-400 mb-1.5" />
               <p className="text-sm font-medium text-slate-700">Click to upload payment screenshot</p>
-              <p className="text-xs text-slate-400 mt-0.5">PNG, JPG, or WebP up to 5MB</p>
+              <p className="text-xs text-slate-400 mt-0.5">PNG, JPG, or WebP up to 4MB</p>
               <input
                 ref={fileInputRef}
                 type="file"

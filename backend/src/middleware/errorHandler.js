@@ -27,7 +27,7 @@ function errorHandler(err, req, res, next) {
     message = 'Request is too large';
   } else if (err.code === 'LIMIT_FILE_SIZE') {
     status = 400;
-    message = 'File size exceeds the 5MB limit';
+    message = 'File size exceeds the 4MB limit';
   } else if (err.code === 'LIMIT_UNEXPECTED_FILE') {
     status = 400;
     message = 'Unexpected file upload field';

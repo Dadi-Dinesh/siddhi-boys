@@ -22,9 +22,10 @@ import MemberTable from '../../components/members/MemberTable'
 
 // Network/server problems get a fixed friendly message; validation errors (400)
 // show the backend's own message, e.g. "Please enter a valid email address".
+// Upload problems (502/503, e.g. "Image upload is not configured") keep the server's message too.
 function friendlyError(error, fallback) {
   const status = error.response?.status
-  if (!status || status >= 500) return fallback
+  if (!status || (status >= 500 && status !== 502 && status !== 503)) return fallback
   return error.response.data?.message || fallback
 }
 
