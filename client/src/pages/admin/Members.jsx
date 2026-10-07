@@ -20,13 +20,10 @@ import MemberDetails from '../../components/members/MemberDetails'
 import MemberForm from '../../components/members/MemberForm'
 import MemberTable from '../../components/members/MemberTable'
 
-// Network/server problems get a fixed friendly message; validation errors (400)
-// show the backend's own message, e.g. "Please enter a valid email address".
-// Upload problems (502/503, e.g. "Image upload is not configured") keep the server's message too.
+// Shows the backend's specific message (e.g. "Cloudinary is not configured on the server",
+// "Please enter a valid phone number") or falls back to a friendly general text.
 function friendlyError(error, fallback) {
-  const status = error.response?.status
-  if (!status || (status >= 500 && status !== 502 && status !== 503)) return fallback
-  return error.response.data?.message || fallback
+  return error.response?.data?.message || fallback
 }
 
 // The list is small, so search simply filters it on the page (no extra requests).

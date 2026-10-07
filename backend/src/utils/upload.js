@@ -1,4 +1,5 @@
 const path = require('path');
+const { Readable } = require('stream');
 const multer = require('multer');
 const { AppError } = require('./response');
 const {
@@ -11,28 +12,54 @@ const ALLOWED_MIMES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const ALLOWED_EXTS = new Set(['.jpg', '.jpeg', '.png', '.webp']);
 const MAX_FILE_SIZE = 4 * 1024 * 1024; // 4 MB: Vercel refuses request bodies over 4.5 MB
 const SCREENSHOT_FOLDER = 'siddhiboys/payment-screenshots';
-const PROFILE_FOLDER = 'siddhiboys/profiles';
+const MEMBER_PHOTO_FOLDER = 'siddhi-boys/members';
 
 // Logs useful diagnostic information without exposing secrets.
 function uploadError(kind, err, file) {
-  const reason = err?.error?.message || err?.message || 'No response from Cloudinary';
-  const code = err?.error?.http_code || err?.http_code || null;
+  const cloudNameConfigured = Boolean(
+    process.env.CLOUDINARY_CLOUD_NAME ||
+    (process.env.CLOUDINARY_URL && process.env.CLOUDINARY_URL.includes('@'))
+  );
+  const apiKeyConfigured = Boolean(
+    process.env.CLOUDINARY_API_KEY ||
+    (process.env.CLOUDINARY_URL && process.env.CLOUDINARY_URL.startsWith('cloudinary://'))
+  );
+  const apiSecretConfigured = Boolean(
+    process.env.CLOUDINARY_API_SECRET ||
+    (process.env.CLOUDINARY_URL && process.env.CLOUDINARY_URL.includes(':'))
+  );
+
+  const errorMessage = err?.message || err?.error?.message || 'No response from Cloudinary';
+  const errorName = err?.name || err?.error?.name || 'Error';
+  const errorCode = err?.code || err?.error?.code || null;
+  const cloudinaryHttpStatus = err?.http_code || err?.error?.http_code || null;
   const fileExists = Boolean(file && (file.buffer || file.size));
   const mimetype = file?.mimetype || 'unknown';
   const sizeBytes = file?.size ?? file?.buffer?.length ?? 0;
 
   console.error(`[Upload Diagnostic] Cloudinary ${kind} upload failed:`, {
-    error: reason,
-    httpStatus: code,
+    errorMessage,
+    errorName,
+    errorCode,
+    cloudinaryHttpStatus,
     fileExists,
     mimetype,
     sizeBytes,
+    cloudNameConfigured,
+    apiKeyConfigured,
+    apiSecretConfigured,
   });
 
-  // 401 = Cloudinary rejected credentials
-  if (code === 401) {
-    return new AppError('Cloudinary credentials rejected by server. Please check Cloudinary configuration.', 503);
+  // 401 or 403: Cloudinary credentials or authorization rejected
+  if (cloudinaryHttpStatus === 401 || cloudinaryHttpStatus === 403) {
+    return new AppError('Cloudinary authentication failed: invalid API key, secret, or cloud name. Please check Cloudinary settings in Vercel.', 500);
   }
+
+  // 400: Cloudinary rejected file or parameters
+  if (cloudinaryHttpStatus === 400) {
+    return new AppError(`Cloudinary rejected the ${kind}: ${errorMessage}`, 400);
+  }
+
   return new AppError(`Could not upload the ${kind}. Please try again.`, 502);
 }
 
@@ -54,27 +81,34 @@ const upload = multer({
   },
 });
 
-// Shared in-memory upload helper for serverless/Vercel safety
-async function uploadBufferToCloudinary(file, options, kind) {
+// Shared in-memory upload helper using Cloudinary upload_stream for serverless/Vercel safety
+function uploadBufferToCloudinary(file, options, kind) {
   if (!file || !file.buffer || !file.buffer.length) {
     throw new AppError('No image file was provided.', 400);
   }
 
-  // Ensures credentials are configured, or throws 503 "Cloudinary is not configured on the server."
+  // Ensures credentials are configured, or throws 500 "Cloudinary is not configured on the server."
   configureCloudinary();
 
-  try {
-    const b64 = Buffer.from(file.buffer).toString('base64');
-    const dataUri = `data:${file.mimetype || 'image/jpeg'};base64,${b64}`;
-    const result = await cloudinary.uploader.upload(dataUri, options);
-    if (!result?.secure_url) {
-      throw new Error('No secure_url returned from Cloudinary');
-    }
-    return result.secure_url;
-  } catch (err) {
-    if (err instanceof AppError) throw err;
-    throw uploadError(kind, err, file);
-  }
+  return new Promise((resolve, reject) => {
+    const uploadStream = cloudinary.uploader.upload_stream(
+      options,
+      (err, result) => {
+        if (err || !result?.secure_url) {
+          const formattedErr = uploadError(kind, err, file);
+          return reject(formattedErr);
+        }
+        resolve(result.secure_url);
+      }
+    );
+
+    uploadStream.on('error', (err) => {
+      const formattedErr = uploadError(kind, err, file);
+      reject(formattedErr);
+    });
+
+    Readable.from(file.buffer).pipe(uploadStream);
+  });
 }
 
 // Uploads a payment screenshot to Cloudinary and returns its URL.
@@ -109,30 +143,30 @@ async function fetchScreenshot(url) {
   };
 }
 
-// Uploads a member's profile photo to Cloudinary (resized to max 400×400) and returns its URL.
+// Uploads a member's profile photo to Cloudinary and returns its URL.
 async function uploadProfilePhotoToCloudinary(file) {
   return uploadBufferToCloudinary(
     file,
     {
-      folder: PROFILE_FOLDER,
+      folder: MEMBER_PHOTO_FOLDER,
       resource_type: 'image',
-      transformation: [{ width: 400, height: 400, crop: 'limit' }],
     },
     'profile photo',
   );
 }
 
 // Deletes a replaced/removed profile photo from Cloudinary. Only images in our own profile
-// folder are ever deleted. A failure here never blocks saving the member.
+// folders are ever deleted. A failure here never blocks saving the member.
 async function deleteCloudinaryImage(url) {
   if (typeof url !== 'string' || !isCloudinaryConfigured()) return;
   const match = url.match(/\/upload\/(?:v\d+\/)?(.+?)\.[a-zA-Z0-9]+$/);
-  if (!match || !match[1].startsWith(`${PROFILE_FOLDER}/`)) return;
+  if (!match || !match[1]) return;
   try {
     configureCloudinary();
     await cloudinary.uploader.destroy(match[1]);
-  } catch {
-    // The old image stays on Cloudinary; nothing else is affected.
+  } catch (err) {
+    // Non-fatal: old image could not be removed
+    console.warn('[Upload Cleanup] Could not delete old Cloudinary image:', err?.message || err);
   }
 }
 

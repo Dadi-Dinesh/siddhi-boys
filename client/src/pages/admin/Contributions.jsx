@@ -41,10 +41,7 @@ function useSelectedMonth() {
 
 // Friendly text for a failed Mark Paid / Mark Unpaid.
 function actionError(error) {
-  const status = error.response?.status
-  // Upload problems (502/503) keep the server's message, e.g. "Could not upload the screenshot".
-  if (!status || (status >= 500 && status !== 502 && status !== 503)) return 'Unable to update payment status. Please try again.'
-  return getErrorMessage(error)
+  return error.response?.data?.message || getErrorMessage(error)
 }
 
 export default function Contributions() {

@@ -50,7 +50,7 @@ function configureCloudinary() {
   const config = getCloudinaryConfig();
   if (!config) {
     const { AppError } = require('../utils/response');
-    throw new AppError('Cloudinary is not configured on the server.', 503);
+    throw new AppError('Cloudinary is not configured on the server.', 500);
   }
   cloudinary.config({
     cloud_name: config.cloud_name,
