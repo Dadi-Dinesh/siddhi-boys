@@ -16,7 +16,8 @@ export async function getMember(id) {
 
 // With a photo the fields are sent as a multipart form; otherwise as plain JSON.
 function toPayload(fields) {
-  if (!(fields.photo instanceof File)) return fields
+  const hasPhoto = fields?.photo instanceof File || (typeof Blob !== 'undefined' && fields?.photo instanceof Blob)
+  if (!hasPhoto) return fields
   const form = new FormData()
   Object.entries(fields).forEach(([key, value]) => {
     if (value !== undefined && value !== null) form.append(key, value)

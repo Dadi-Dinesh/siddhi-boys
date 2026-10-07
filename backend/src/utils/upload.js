@@ -1,22 +1,37 @@
 const path = require('path');
 const multer = require('multer');
 const { AppError } = require('./response');
-const { cloudinary, isCloudinaryConfigured } = require('../config/cloudinary');
+const {
+  cloudinary,
+  isCloudinaryConfigured,
+  configureCloudinary,
+} = require('../config/cloudinary');
 
 const ALLOWED_MIMES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const ALLOWED_EXTS = new Set(['.jpg', '.jpeg', '.png', '.webp']);
 const MAX_FILE_SIZE = 4 * 1024 * 1024; // 4 MB: Vercel refuses request bodies over 4.5 MB
 const SCREENSHOT_FOLDER = 'siddhiboys/payment-screenshots';
+const PROFILE_FOLDER = 'siddhiboys/profiles';
 
-// Cloudinary's reason for a failed upload (e.g. "cloud_name mismatch", "Invalid api_key").
-// It never contains the API secret. Logged on the server (Vercel → Logs); users get a short message.
-function uploadError(kind, err) {
-  const reason = err?.error?.message || err?.message || 'no secure_url returned';
-  const code = err?.error?.http_code || err?.http_code || '';
-  console.error(`Cloudinary ${kind} upload failed: ${reason}${code ? ` (HTTP ${code})` : ''}`);
-  // 401 = Cloudinary rejected our credentials: retrying won't help, the server settings must be fixed.
+// Logs useful diagnostic information without exposing secrets.
+function uploadError(kind, err, file) {
+  const reason = err?.error?.message || err?.message || 'No response from Cloudinary';
+  const code = err?.error?.http_code || err?.http_code || null;
+  const fileExists = Boolean(file && (file.buffer || file.size));
+  const mimetype = file?.mimetype || 'unknown';
+  const sizeBytes = file?.size ?? file?.buffer?.length ?? 0;
+
+  console.error(`[Upload Diagnostic] Cloudinary ${kind} upload failed:`, {
+    error: reason,
+    httpStatus: code,
+    fileExists,
+    mimetype,
+    sizeBytes,
+  });
+
+  // 401 = Cloudinary rejected credentials
   if (code === 401) {
-    return new AppError('Image upload is not set up correctly on the server (Cloudinary settings). Please contact the admin.', 503);
+    return new AppError('Cloudinary credentials rejected by server. Please check Cloudinary configuration.', 503);
   }
   return new AppError(`Could not upload the ${kind}. Please try again.`, 502);
 }
@@ -29,7 +44,7 @@ const fileFilter = (req, file, cb) => {
   cb(null, true);
 };
 
-// The file is kept in memory only long enough to send it to Cloudinary.
+// The file is kept in memory only; never written to local disk.
 const upload = multer({
   storage: multer.memoryStorage(),
   fileFilter,
@@ -39,31 +54,45 @@ const upload = multer({
   },
 });
 
-// Uploads a payment screenshot to Cloudinary and returns its URL.
-// type "authenticated" means the image is NOT publicly listed or guessable: only the
-// signed URL Cloudinary returns can open it, and that URL is stored on the server only.
-// Members and admins view screenshots through the protected API route instead.
-function uploadScreenshotToCloudinary(file) {
-  if (!isCloudinaryConfigured()) {
-    throw new AppError('Image upload is not configured on the server. Please contact the admin.', 503);
+// Shared in-memory upload helper for serverless/Vercel safety
+async function uploadBufferToCloudinary(file, options, kind) {
+  if (!file || !file.buffer || !file.buffer.length) {
+    throw new AppError('No image file was provided.', 400);
   }
-  return new Promise((resolve, reject) => {
-    const stream = cloudinary.uploader.upload_stream(
-      { folder: SCREENSHOT_FOLDER, type: 'authenticated', resource_type: 'image' },
-      (err, result) => {
-        if (err || !result?.secure_url) {
-          return reject(uploadError('screenshot', err));
-        }
-        resolve(result.secure_url);
-      },
-    );
-    stream.end(file.buffer);
-  });
+
+  // Ensures credentials are configured, or throws 503 "Cloudinary is not configured on the server."
+  configureCloudinary();
+
+  try {
+    const b64 = Buffer.from(file.buffer).toString('base64');
+    const dataUri = `data:${file.mimetype || 'image/jpeg'};base64,${b64}`;
+    const result = await cloudinary.uploader.upload(dataUri, options);
+    if (!result?.secure_url) {
+      throw new Error('No secure_url returned from Cloudinary');
+    }
+    return result.secure_url;
+  } catch (err) {
+    if (err instanceof AppError) throw err;
+    throw uploadError(kind, err, file);
+  }
+}
+
+// Uploads a payment screenshot to Cloudinary and returns its URL.
+// type "authenticated" means the image is NOT publicly listed: only the signed URL can access it.
+async function uploadScreenshotToCloudinary(file) {
+  return uploadBufferToCloudinary(
+    file,
+    {
+      folder: SCREENSHOT_FOLDER,
+      type: 'authenticated',
+      resource_type: 'image',
+    },
+    'screenshot',
+  );
 }
 
 // Downloads a stored screenshot (server side) so it can be streamed to a logged-in user.
 async function fetchScreenshot(url) {
-  // Only ever fetch from Cloudinary, never from any other address stored in the database.
   if (typeof url !== 'string' || !url.startsWith('https://res.cloudinary.com/')) {
     throw new AppError('Screenshot image not found', 404);
   }
@@ -80,30 +109,17 @@ async function fetchScreenshot(url) {
   };
 }
 
-const PROFILE_FOLDER = 'siddhiboys/profiles';
-
-// Uploads a member's profile photo to Cloudinary (resized to 400×400) and returns its URL.
-// Profile photos are ordinary (public) Cloudinary images; payment screenshots are not.
-function uploadProfilePhotoToCloudinary(file) {
-  if (!isCloudinaryConfigured()) {
-    throw new AppError('Image upload is not configured on the server. Please contact the admin.', 503);
-  }
-  return new Promise((resolve, reject) => {
-    const stream = cloudinary.uploader.upload_stream(
-      {
-        folder: PROFILE_FOLDER,
-        resource_type: 'image',
-        transformation: [{ width: 400, height: 400, crop: 'fill', gravity: 'face' }],
-      },
-      (err, result) => {
-        if (err || !result?.secure_url) {
-          return reject(uploadError('profile photo', err));
-        }
-        resolve(result.secure_url);
-      },
-    );
-    stream.end(file.buffer);
-  });
+// Uploads a member's profile photo to Cloudinary (resized to max 400×400) and returns its URL.
+async function uploadProfilePhotoToCloudinary(file) {
+  return uploadBufferToCloudinary(
+    file,
+    {
+      folder: PROFILE_FOLDER,
+      resource_type: 'image',
+      transformation: [{ width: 400, height: 400, crop: 'limit' }],
+    },
+    'profile photo',
+  );
 }
 
 // Deletes a replaced/removed profile photo from Cloudinary. Only images in our own profile
@@ -113,6 +129,7 @@ async function deleteCloudinaryImage(url) {
   const match = url.match(/\/upload\/(?:v\d+\/)?(.+?)\.[a-zA-Z0-9]+$/);
   if (!match || !match[1].startsWith(`${PROFILE_FOLDER}/`)) return;
   try {
+    configureCloudinary();
     await cloudinary.uploader.destroy(match[1]);
   } catch {
     // The old image stays on Cloudinary; nothing else is affected.
@@ -127,4 +144,5 @@ module.exports = {
   uploadProfilePhotoToCloudinary,
   deleteCloudinaryImage,
 };
+
 
