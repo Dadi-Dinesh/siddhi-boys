@@ -337,8 +337,17 @@ export default function GroupActivity() {
                             )}
                           </td>
                           <td className="px-3 py-3">
-                            {isPaid && <Badge variant="success">PAID</Badge>}
-                            {isPending && <Badge variant="warning">Pending Verification</Badge>}
+                            {isPaid && (
+                              <div className="flex items-center gap-1">
+                                <Badge variant="success">PAID</Badge>
+                                {c.paymentMethod === 'CASH' && <Badge variant="neutral">Cash</Badge>}
+                              </div>
+                            )}
+                            {isPending && (
+                              <Badge variant="warning">
+                                {c.verification?.paymentMethod === 'CASH' ? 'Pending Cash' : 'Pending Verification'}
+                              </Badge>
+                            )}
                             {isDeclined && <Badge variant="danger">DECLINED</Badge>}
                             {!isPaid && !isPending && !isDeclined && <Badge variant="neutral">UNPAID</Badge>}
                           </td>
@@ -356,6 +365,8 @@ export default function GroupActivity() {
                                 <Eye size={13} />
                                 View
                               </button>
+                            ) : c.paymentMethod === 'CASH' ? (
+                              <span className="text-emerald-700 font-medium text-xs">Cash</span>
                             ) : (
                               <span className="text-slate-400 text-xs">—</span>
                             )}
@@ -389,13 +400,13 @@ export default function GroupActivity() {
                           <div className="min-w-0">
                             <p className="font-semibold text-slate-900 truncate">{c.member?.name || c.name}</p>
                             <p className="text-xs text-slate-500">
-                              {c.label} {paymentDateLabel ? `· Paid ${paymentDateLabel}` : ''}
+                              {c.label} {paymentDateLabel ? `· Paid ${paymentDateLabel}` : ''} {c.paymentMethod === 'CASH' ? '· Cash' : ''}
                             </p>
                           </div>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
-                          {isPaid && <Badge variant="success">PAID</Badge>}
-                          {isPending && <Badge variant="warning">Pending</Badge>}
+                          {isPaid && <Badge variant="success">{c.paymentMethod === 'CASH' ? 'PAID (CASH)' : 'PAID'}</Badge>}
+                          {isPending && <Badge variant="warning">{c.verification?.paymentMethod === 'CASH' ? 'Pending Cash' : 'Pending'}</Badge>}
                           {isDeclined && <Badge variant="danger">Declined</Badge>}
                           {!isPaid && !isPending && !isDeclined && <Badge variant="neutral">UNPAID</Badge>}
 

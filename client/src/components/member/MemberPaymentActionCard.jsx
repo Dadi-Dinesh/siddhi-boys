@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import { AlertCircle, CheckCircle2, Clock, Eye, ImageIcon, RotateCcw, UploadCloud, X, XCircle } from 'lucide-react'
+import { AlertCircle, Banknote, CheckCircle2, Clock, CreditCard, Eye, ImageIcon, RotateCcw, UploadCloud, X, XCircle } from 'lucide-react'
 import { submitPaymentVerification } from '../../services/paymentVerificationService'
 import { getErrorMessage } from '../../services/api'
 import { formatDate, formatDateLong, formatRupees, todayInputDate } from '../../utils/format'
@@ -11,10 +11,12 @@ import ImageModal from '../ImageModal'
 import Input from '../Input'
 
 export default function MemberPaymentActionCard({ record, onSubmitted }) {
+  const [paymentMethod, setPaymentMethod] = useState('ONLINE')
   const [file, setFile] = useState(null)
   const [previewUrl, setPreviewUrl] = useState(null)
   const [paymentDate, setPaymentDate] = useState(todayInputDate())
   const [note, setNote] = useState('')
+  const [includeFine, setIncludeFine] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
@@ -65,8 +67,8 @@ export default function MemberPaymentActionCard({ record, onSubmitted }) {
       setError('Payment date cannot be in the future.')
       return
     }
-    if (!file) {
-      setError('Payment screenshot is required.')
+    if (paymentMethod === 'ONLINE' && !file) {
+      setError('Payment screenshot is required for online payments.')
       return
     }
 
@@ -76,15 +78,22 @@ export default function MemberPaymentActionCard({ record, onSubmitted }) {
     try {
       await submitPaymentVerification({
         contributionId: record.id,
-        file,
+        paymentMethod,
+        file: paymentMethod === 'ONLINE' ? file : null,
         paymentDate,
         note,
+        includeFine: isLate && includeFine,
       })
       handleRemoveFile()
       setPaymentDate(todayInputDate())
       setNote('')
+      setIncludeFine(false)
       setIsResubmitting(false)
-      setSuccess('Payment screenshot submitted successfully! An admin will verify it.')
+      setSuccess(
+        paymentMethod === 'CASH'
+          ? 'Cash payment request submitted! An admin will verify and accept it.'
+          : 'Payment screenshot submitted successfully! An admin will verify it.'
+      )
       if (onSubmitted) await onSubmitted()
     } catch (err) {
       setError(getErrorMessage(err) || 'Failed to submit payment verification.')
@@ -96,7 +105,8 @@ export default function MemberPaymentActionCard({ record, onSubmitted }) {
   // Dynamic fine calculation for unpaid payment form
   const baseAmount = Number(record.amount)
   const isLate = Boolean(record.dueDate && paymentDate > record.dueDate)
-  const fineAmount = isLate ? Number(record.lateFine ?? 20) : 0
+  const lateFineAmount = Number(record.lateFine ?? 20)
+  const fineAmount = isLate && includeFine ? lateFineAmount : 0
   const totalPayable = baseAmount + fineAmount
 
   // CASE 1: Paid
@@ -104,6 +114,8 @@ export default function MemberPaymentActionCard({ record, onSubmitted }) {
     const paidFine = Number(record.fineAmount || 0)
     const paidTotal = Number(record.totalPaidAmount || (baseAmount + paidFine))
     const displayDate = record.paymentDate ? formatDate(record.paymentDate) : (record.paidAt ? formatDate(record.paidAt) : null)
+    const paidMethod = record.paymentMethod || verification?.paymentMethod || (verification?.screenshotUrl ? 'ONLINE' : 'CASH')
+    const isCash = paidMethod === 'CASH'
 
     return (
       <Card className="border-emerald-200/70 bg-gradient-to-r from-emerald-50/50 to-white">
@@ -116,9 +128,12 @@ export default function MemberPaymentActionCard({ record, onSubmitted }) {
               <div className="flex items-center gap-2">
                 <h3 className="font-semibold text-slate-900">Current Month Paid</h3>
                 <Badge variant="success">PAID</Badge>
+                <Badge variant="neutral">
+                  {isCash ? '💵 Cash' : '💳 Online'}
+                </Badge>
               </div>
               <p className="mt-0.5 text-sm text-slate-600">
-                Your contribution for {record.label} is paid{displayDate ? ` on ${displayDate}` : ''}.
+                Your contribution for {record.label} is paid{displayDate ? ` on ${displayDate}` : ''} {isCash ? 'via cash' : 'online'}.
               </p>
               <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-slate-700 bg-emerald-50/60 rounded-lg p-2.5 border border-emerald-100">
                 <span>Base: <strong>{formatRupees(baseAmount)}</strong></span>
@@ -152,6 +167,8 @@ export default function MemberPaymentActionCard({ record, onSubmitted }) {
     const pendingTotal = Number(verification?.totalAmount || record.totalPaidAmount || record.amount)
     const pendingFine = Number(verification?.fineAmount || 0)
     const payDate = verification?.paymentDate ? formatDate(verification.paymentDate) : null
+    const pendingMethod = verification?.paymentMethod || (verification?.screenshotUrl ? 'ONLINE' : 'CASH')
+    const isCash = pendingMethod === 'CASH'
 
     return (
       <Card className="border-amber-200/80 bg-gradient-to-r from-amber-50/40 to-white">
@@ -159,15 +176,21 @@ export default function MemberPaymentActionCard({ record, onSubmitted }) {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-start gap-3">
               <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
-                <Clock size={22} />
+                {isCash ? <Banknote size={22} /> : <Clock size={22} />}
               </span>
               <div>
                 <div className="flex items-center gap-2">
-                  <h3 className="font-semibold text-slate-900">Payment Verification Pending</h3>
-                  <Badge variant="warning">PENDING VERIFICATION</Badge>
+                  <h3 className="font-semibold text-slate-900">
+                    {isCash ? 'Cash Payment Pending Acceptance' : 'Payment Verification Pending'}
+                  </h3>
+                  <Badge variant="warning">
+                    {isCash ? 'CASH · PENDING' : 'ONLINE · PENDING'}
+                  </Badge>
                 </div>
                 <p className="mt-0.5 text-sm text-slate-600">
-                  Your payment screenshot has been submitted. An admin will verify it.
+                  {isCash
+                    ? 'Cash payment recorded. Please make sure the cash is handed to an admin to confirm.'
+                    : 'Your payment screenshot has been submitted. An admin will verify it.'}
                 </p>
               </div>
             </div>
@@ -309,8 +332,8 @@ export default function MemberPaymentActionCard({ record, onSubmitted }) {
           </div>
           <div>
             <span className="text-xs text-slate-500 font-medium block">Late Fine</span>
-            <span className={`font-bold text-base tabular-nums ${isLate ? 'text-amber-700' : 'text-slate-600'}`}>
-              {isLate ? formatRupees(fineAmount) : '₹0'}
+            <span className={`font-bold text-base tabular-nums ${isLate && includeFine ? 'text-amber-700' : 'text-slate-600'}`}>
+              {isLate ? (includeFine ? formatRupees(fineAmount) : '₹0 (Waived)') : '₹0'}
             </span>
           </div>
           <div>
@@ -321,8 +344,12 @@ export default function MemberPaymentActionCard({ record, onSubmitted }) {
 
         {/* Fine status message */}
         {isLate ? (
-          <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-3 text-xs text-amber-900 flex items-center justify-between">
-            <span>Late payment fine: <strong>{formatRupees(fineAmount)}</strong></span>
+          <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-3 text-xs text-amber-900 flex flex-wrap items-center justify-between gap-2">
+            <span>
+              {includeFine
+                ? `Late payment fine of ${formatRupees(lateFineAmount)} is included.`
+                : `Payment is after due date (${record.dueDateLabel || (record.dueDate ? formatDateLong(record.dueDate) : '—')}). Late fine of ${formatRupees(lateFineAmount)} is optional.`}
+            </span>
             <span className="font-bold">Total payable: {formatRupees(totalPayable)}</span>
           </div>
         ) : (
@@ -337,77 +364,159 @@ export default function MemberPaymentActionCard({ record, onSubmitted }) {
 
         {/* Submission Form */}
         <form onSubmit={handleSubmit} className="space-y-4 pt-1">
+          {/* Payment Method Selector */}
+          <div className="space-y-1.5">
+            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500">
+              Payment Method
+            </label>
+            <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 rounded-xl">
+              <button
+                type="button"
+                onClick={() => {
+                  setPaymentMethod('ONLINE')
+                  setError('')
+                }}
+                className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-sm font-semibold transition-all ${
+                  paymentMethod === 'ONLINE'
+                    ? 'bg-white text-primary-700 shadow-xs border border-slate-200/80'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <CreditCard size={17} />
+                <span>Online / UPI</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPaymentMethod('CASH')
+                  setError('')
+                  handleRemoveFile()
+                }}
+                className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-sm font-semibold transition-all ${
+                  paymentMethod === 'CASH'
+                    ? 'bg-white text-emerald-700 shadow-xs border border-slate-200/80'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Banknote size={17} />
+                <span>Cash Payment</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Cash Notice Banner */}
+          {paymentMethod === 'CASH' && (
+            <div className="rounded-xl border border-emerald-200/80 bg-emerald-50/70 p-3.5 text-emerald-950 flex items-start gap-3">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700">
+                <Banknote size={20} />
+              </span>
+              <div className="text-xs">
+                <p className="font-bold text-emerald-900 text-sm">No proof required for Cash</p>
+                <p className="text-emerald-800 mt-0.5 leading-relaxed">
+                  Hand over <strong>{formatRupees(totalPayable)}</strong> in cash directly to the admin. Simply submit this request and an admin will accept it upon receiving your payment.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Payment Date Field */}
           <div>
             <Input
               type="date"
-              label="Payment Date"
+              label={paymentMethod === 'CASH' ? 'Cash Handover Date' : 'Payment Date'}
               value={paymentDate}
               max={todayInputDate()}
               onChange={(e) => setPaymentDate(e.target.value)}
-              hint="Enter the actual date the payment was completed (cannot be a future date)."
+              hint={paymentMethod === 'CASH' ? 'The date cash was or will be handed to the admin.' : 'Enter the actual date the payment was completed (cannot be a future date).'}
               required
             />
             {paymentDate && (
               <p className="mt-1 text-xs text-slate-500">
-                Declared payment date: <strong className="text-slate-800">{formatDateLong(paymentDate)}</strong>
+                Declared date: <strong className="text-slate-800">{formatDateLong(paymentDate)}</strong>
               </p>
             )}
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-slate-800 mb-1.5">
-              Upload Payment Screenshot <span className="text-danger-600">*</span>
-            </label>
-
-            {!file ? (
-              <div
-                onClick={() => fileInputRef.current?.click()}
-                className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-slate-300 rounded-xl hover:border-primary-500 cursor-pointer bg-white hover:bg-primary-50/20 transition-all text-center"
-              >
-                <UploadCloud size={32} className="text-primary-600 mb-1.5" />
-                <p className="text-sm font-semibold text-slate-800">Click to upload payment screenshot</p>
-                <p className="text-xs text-slate-400 mt-1">PNG, JPG, or WebP up to 4MB</p>
+          {/* Optional Late Fine Checkbox (when paying after due date) */}
+          {isLate && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3.5 transition-all">
+              <label className="flex items-start gap-3 cursor-pointer select-none">
                 <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp"
-                  className="hidden"
-                  onChange={handleFileChange}
+                  type="checkbox"
+                  id="include-late-fine-checkbox"
+                  checked={includeFine}
+                  onChange={(e) => setIncludeFine(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-amber-300 text-primary-600 focus:ring-primary-500 cursor-pointer"
                 />
-              </div>
-            ) : (
-              <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-3 shadow-xs">
-                <div className="flex items-center gap-3 min-w-0">
-                  {previewUrl ? (
-                    <img
-                      src={previewUrl}
-                      alt="Preview"
-                      className="h-12 w-12 object-cover rounded-lg border border-slate-200 shrink-0"
-                    />
-                  ) : (
-                    <ImageIcon size={24} className="text-slate-400 shrink-0" />
-                  )}
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-slate-900 truncate">{file.name}</p>
-                    <p className="text-xs text-slate-500">{(file.size / 1024).toFixed(1)} KB</p>
-                  </div>
+                <div className="text-xs">
+                  <span className="font-semibold text-amber-950 text-sm block">
+                    Include late fine of {formatRupees(lateFineAmount)}
+                  </span>
+                  <span className="text-amber-800 leading-relaxed block mt-0.5">
+                    Your payment date is after the due date ({record.dueDateLabel || (record.dueDate ? formatDateLong(record.dueDate) : '—')}).
+                    Tick this checkbox if you are paying the fine. When accepted by admin, the fine will be added to the total.
+                  </span>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleRemoveFile}
-                  disabled={submitting}
-                  className="p-1 rounded-md text-slate-400 hover:text-danger-600 hover:bg-slate-100"
+              </label>
+            </div>
+          )}
+
+          {/* Screenshot Upload (Only required for ONLINE) */}
+          {paymentMethod === 'ONLINE' && (
+            <div>
+              <label className="block text-sm font-medium text-slate-800 mb-1.5">
+                Upload Payment Screenshot <span className="text-danger-600">*</span>
+              </label>
+
+              {!file ? (
+                <div
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-slate-300 rounded-xl hover:border-primary-500 cursor-pointer bg-white hover:bg-primary-50/20 transition-all text-center"
                 >
-                  <X size={18} />
-                </button>
-              </div>
-            )}
-          </div>
+                  <UploadCloud size={32} className="text-primary-600 mb-1.5" />
+                  <p className="text-sm font-semibold text-slate-800">Click to upload payment screenshot</p>
+                  <p className="text-xs text-slate-400 mt-1">PNG, JPG, or WebP up to 4MB</p>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    className="hidden"
+                    onChange={handleFileChange}
+                  />
+                </div>
+              ) : (
+                <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-3 shadow-xs">
+                  <div className="flex items-center gap-3 min-w-0">
+                    {previewUrl ? (
+                      <img
+                        src={previewUrl}
+                        alt="Preview"
+                        className="h-12 w-12 object-cover rounded-lg border border-slate-200 shrink-0"
+                      />
+                    ) : (
+                      <ImageIcon size={24} className="text-slate-400 shrink-0" />
+                    )}
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-slate-900 truncate">{file.name}</p>
+                      <p className="text-xs text-slate-500">{(file.size / 1024).toFixed(1)} KB</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleRemoveFile}
+                    disabled={submitting}
+                    className="p-1 rounded-md text-slate-400 hover:text-danger-600 hover:bg-slate-100"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
 
           <Input
-            label="Payment note / Reference (optional)"
-            placeholder="e.g. Paid via Google Pay, UPI Ref: 123456789"
+            label={paymentMethod === 'CASH' ? 'Note / Admin Reference (optional)' : 'Payment note / Reference (optional)'}
+            placeholder={paymentMethod === 'CASH' ? 'e.g. Handed cash to John during Sunday meeting' : 'e.g. Paid via Google Pay, UPI Ref: 123456789'}
             value={note}
             onChange={(e) => setNote(e.target.value)}
             maxLength={200}
@@ -418,10 +527,10 @@ export default function MemberPaymentActionCard({ record, onSubmitted }) {
               type="submit"
               loading={submitting}
               loadingText="Submitting..."
-              disabled={!file}
-              className="w-full sm:w-auto"
+              disabled={paymentMethod === 'ONLINE' && !file}
+              className={`w-full sm:w-auto ${paymentMethod === 'CASH' ? 'bg-emerald-600 hover:bg-emerald-700' : ''}`}
             >
-              Submit Payment
+              {paymentMethod === 'CASH' ? 'Submit Cash Payment' : 'Submit Payment Screenshot'}
             </Button>
             {isDeclined && isResubmitting && (
               <Button

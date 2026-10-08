@@ -1,21 +1,22 @@
-import { CalendarClock, CheckCircle2, Clock, Eye, XCircle } from 'lucide-react'
+import { Banknote, CalendarClock, CheckCircle2, Clock, Eye, XCircle } from 'lucide-react'
 import Badge from '../Badge'
 import Button from '../Button'
 
 // PAID / UNPAID / PENDING / DECLINED badge
-export function StatusBadge({ status, verification }) {
+export function StatusBadge({ status, verification, paymentMethod }) {
+  const method = paymentMethod || verification?.paymentMethod
   if (status === 'PAID') {
     return (
       <Badge variant="success" icon={CheckCircle2}>
-        Paid
+        {method === 'CASH' ? 'Paid (Cash)' : 'Paid'}
       </Badge>
     )
   }
   if (status === 'UNPAID') {
     if (verification?.status === 'PENDING') {
       return (
-        <Badge variant="warning" icon={Clock}>
-          Pending Verification
+        <Badge variant="warning" icon={method === 'CASH' ? Banknote : Clock}>
+          {method === 'CASH' ? 'Pending Cash' : 'Pending Verification'}
         </Badge>
       )
     }
@@ -35,8 +36,20 @@ export function StatusBadge({ status, verification }) {
   return <Badge icon={CalendarClock}>Not created</Badge>
 }
 
-// Indicator button that opens the screenshot preview modal
+// Indicator button that opens the screenshot preview modal or shows cash badge
 export function ScreenshotIndicator({ contribution, onClick }) {
+  const isCash = contribution?.paymentMethod === 'CASH' || contribution?.verification?.paymentMethod === 'CASH'
+  if (isCash) {
+    return (
+      <span
+        className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium text-emerald-800 bg-emerald-50 border border-emerald-100"
+        title="Cash payment"
+      >
+        <Banknote size={12} aria-hidden="true" />
+        Cash
+      </span>
+    )
+  }
   if (!contribution?.verification?.screenshotUrl) return null
   return (
     <button

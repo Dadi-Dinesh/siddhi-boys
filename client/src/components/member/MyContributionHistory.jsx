@@ -53,7 +53,7 @@ export default function MyContributionHistory({ items }) {
                     </td>
                     <td className="px-3 py-3 text-right tabular-nums font-bold text-slate-900">{formatRupees(totalVal)}</td>
                     <td className="px-3 py-3">
-                      <StatusBadge status={c.status} />
+                      <StatusBadge status={c.status} verification={c.verification} paymentMethod={c.paymentMethod} />
                     </td>
                     <td className="px-3 py-3 text-slate-600 text-xs">{payDate}</td>
                     <td className="py-3 pl-3 text-right">
@@ -67,6 +67,8 @@ export default function MyContributionHistory({ items }) {
                           <Eye size={13} />
                           View
                         </button>
+                      ) : (c.paymentMethod === 'CASH' || c.verification?.paymentMethod === 'CASH') ? (
+                        <span className="text-emerald-700 font-medium text-xs">Cash</span>
                       ) : (
                         <span className="text-slate-300 text-xs">—</span>
                       )}
@@ -81,6 +83,7 @@ export default function MyContributionHistory({ items }) {
           <ul className="divide-y divide-slate-100 sm:hidden">
             {items.map((c) => {
               const isPaid = c.status === 'PAID'
+              const isCash = c.paymentMethod === 'CASH' || c.verification?.paymentMethod === 'CASH'
               const fineVal = Number(c.fineAmount || 0)
               const baseVal = Number(c.amount)
               const totalVal = isPaid
@@ -93,11 +96,11 @@ export default function MyContributionHistory({ items }) {
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
                       <p className="font-semibold text-slate-900">{c.label}</p>
-                      <p className="text-xs text-slate-500">{payDate ? `Paid on ${payDate}` : 'Not paid yet'}</p>
+                      <p className="text-xs text-slate-500">{payDate ? `Paid on ${payDate}${isCash ? ' (Cash)' : ''}` : 'Not paid yet'}</p>
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
                       <span className="font-bold tabular-nums text-slate-900">{formatRupees(totalVal)}</span>
-                      <StatusBadge status={c.status} />
+                      <StatusBadge status={c.status} verification={c.verification} paymentMethod={c.paymentMethod} />
                       {c.verification?.screenshotUrl && (
                         <button
                           type="button"

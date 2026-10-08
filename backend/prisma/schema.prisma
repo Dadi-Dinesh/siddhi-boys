@@ -63,6 +63,7 @@ model MonthlyContribution {
   fineAmount      Decimal            @default(0) @db.Decimal(10, 2) // actual fine paid
   totalPaidAmount Decimal?           @db.Decimal(10, 2) // amount + fineAmount when PAID
   paymentDate     DateTime?          @db.Date // actual payment date
+  paymentMethod   PaymentMethod?     // ONLINE or CASH when paid
   status          ContributionStatus @default(UNPAID)
   paidAt          DateTime?
   createdAt       DateTime           @default(now())
@@ -103,12 +104,18 @@ enum SubmitterRole {
   ADMIN
 }
 
+enum PaymentMethod {
+  ONLINE
+  CASH
+}
+
 model PaymentVerification {
   id              String                    @id @default(uuid())
   contributionId  String
   submittedById   String
   submittedByRole SubmitterRole             @default(MEMBER)
-  screenshotUrl   String
+  paymentMethod   PaymentMethod             @default(ONLINE)
+  screenshotUrl   String?
   paymentDate     DateTime?                 @db.Date
   fineAmount      Decimal                   @default(0) @db.Decimal(10, 2)
   totalAmount     Decimal?                  @db.Decimal(10, 2)

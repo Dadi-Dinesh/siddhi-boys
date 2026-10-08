@@ -40,7 +40,7 @@ export default function CurrentMonthCard({ record, monthLabel, currentAmount }) 
               Receipt
             </Button>
           )}
-          <StatusBadge status={status} />
+          <StatusBadge status={status} verification={record?.verification} paymentMethod={record?.paymentMethod} />
         </div>
       </div>
 
@@ -48,13 +48,13 @@ export default function CurrentMonthCard({ record, monthLabel, currentAmount }) 
         {status === 'PAID' && (
           <>
             <CheckCircle2 size={16} className="text-success-600" aria-hidden="true" />
-            Paid on {formatDate(record.paidAt)}. Thank you!
+            Paid{record?.paymentMethod === 'CASH' ? ' via Cash' : ''} on {formatDate(record.paymentDate || record.paidAt)}. Thank you!
           </>
         )}
         {status === 'UNPAID' && (
           <>
             <Clock size={16} className="text-warning-600" aria-hidden="true" />
-            Payment pending. Please pay {formatRupees(record.amount)} and submit your payment screenshot.
+            Payment pending. Please pay {formatRupees(record.amount)} (online or cash) and submit your payment.
           </>
         )}
         {status === 'NOT_CREATED' && (

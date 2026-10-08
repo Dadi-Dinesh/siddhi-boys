@@ -106,13 +106,16 @@ export default function Contributions() {
   const [previewContribution, setPreviewContribution] = useState(null)
   const handleMarkPaid = (contribution) => setPayModalTarget(contribution)
 
-  // Clicking "Mark Paid" now opens the Verify Payment modal requiring a screenshot upload
-  async function handleAdminPaySubmit({ contributionId, file, paymentDate, note }) {
+  // Clicking "Mark Paid" opens the Record Payment modal supporting Cash or Online screenshot
+  async function handleAdminPaySubmit({ contributionId, paymentMethod, file, paymentDate, note, includeFine }) {
     setPayLoading(true)
     try {
-      await adminMarkPaidWithScreenshot({ contributionId, file, paymentDate, note })
+      await adminMarkPaidWithScreenshot({ contributionId, paymentMethod, file, paymentDate, note, includeFine })
       await reload()
-      showFlash('success', `${payModalTarget.member?.name || 'Member'} marked as paid with screenshot.`)
+      showFlash(
+        'success',
+        `${payModalTarget.member?.name || 'Member'} marked as paid${paymentMethod === 'CASH' ? ' in cash' : ' with screenshot'}.`
+      )
       setPayModalTarget(null)
     } catch (err) {
       showFlash('error', actionError(err))

@@ -59,7 +59,7 @@ export default function ContributionTable({
                 <td className="px-3 py-3 text-right tabular-nums font-bold text-slate-900">{formatRupees(totalVal)}</td>
                 <td className="px-3 py-3">
                   <div className="flex items-center gap-2">
-                    <StatusBadge status={c.status} verification={c.verification} />
+                    <StatusBadge status={c.status} verification={c.verification} paymentMethod={c.paymentMethod} />
                     {onViewScreenshot && <ScreenshotIndicator contribution={c} onClick={onViewScreenshot} />}
                   </div>
                 </td>

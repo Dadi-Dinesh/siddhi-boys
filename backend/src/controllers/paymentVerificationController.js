@@ -10,11 +10,13 @@ async function submit(req, res) {
     file: req.file,
     paymentDate: req.body?.paymentDate,
     note: req.body?.note,
+    paymentMethod: req.body?.paymentMethod,
+    includeFine: req.body?.includeFine,
   });
   sendSuccess(res, result, 'Payment verification submitted successfully', 201);
 }
 
-// PATCH /api/contributions/:id/pay (Admin mark paid with screenshot)
+// PATCH /api/contributions/:id/pay (Admin mark paid with screenshot or cash)
 async function adminMarkPaid(req, res) {
   const result = await paymentVerificationService.adminMarkPaidWithScreenshot({
     contributionId: req.params.id,
@@ -22,6 +24,8 @@ async function adminMarkPaid(req, res) {
     file: req.file,
     paymentDate: req.body?.paymentDate,
     note: req.body?.note,
+    paymentMethod: req.body?.paymentMethod,
+    includeFine: req.body?.includeFine,
   });
   sendSuccess(res, { ...result.contribution, verification: result.verification }, result.message);
 }
@@ -41,7 +45,9 @@ async function getScreenshot(req, res) {
 
 // PATCH /api/admin/payment-verifications/:id/accept
 async function accept(req, res) {
-  const result = await paymentVerificationService.acceptVerification(req.params.id, req.user.id);
+  const result = await paymentVerificationService.acceptVerification(req.params.id, req.user.id, {
+    includeFine: req.body?.includeFine,
+  });
   sendSuccess(res, result, 'Payment verification accepted. Contribution marked as paid.');
 }
 

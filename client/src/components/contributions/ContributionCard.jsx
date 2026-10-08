@@ -38,7 +38,7 @@ export default function ContributionCard({
         <div className="flex shrink-0 flex-col items-end gap-1.5">
           <span className="font-bold tabular-nums text-slate-900">{formatRupees(totalVal)}</span>
           <div className="flex items-center gap-1.5">
-            <StatusBadge status={c.status} verification={c.verification} />
+            <StatusBadge status={c.status} verification={c.verification} paymentMethod={c.paymentMethod} />
           </div>
         </div>
       </div>
@@ -52,7 +52,7 @@ export default function ContributionCard({
             <span className="ml-2 text-slate-400">Fine: ₹0</span>
           )}
         </div>
-        {onViewScreenshot && c.verification?.screenshotUrl && (
+        {onViewScreenshot && (
           <ScreenshotIndicator contribution={c} onClick={onViewScreenshot} />
         )}
       </div>

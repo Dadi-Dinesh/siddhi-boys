@@ -16,6 +16,9 @@ function formatContribution(c) {
     ? toMoney(c.totalPaidAmount)
     : (c.status === 'PAID' ? toMoney(toDecimal(c.amount).plus(toDecimal(c.fineAmount || 0))) : null);
 
+  const v = c.verifications && c.verifications.length > 0 ? c.verifications[0] : null;
+  const paymentMethod = c.paymentMethod || (v?.paymentMethod) || (c.status === 'PAID' ? 'ONLINE' : null);
+
   const result = {
     id: c.id,
     month: c.month,
@@ -27,18 +30,20 @@ function formatContribution(c) {
     lateFine: toMoney(c.lateFine ?? 20),
     fineAmount,
     totalPaidAmount,
+    paymentMethod,
     paymentDate: c.paymentDate ? toDateString(c.paymentDate) : null,
     paymentDateLabel: c.paymentDate ? formatDateLabel(c.paymentDate) : null,
     status: c.status,
     paidAt: c.paidAt,
   };
   if (c.user) result.member = c.user;
-  if (c.verifications && c.verifications.length > 0) {
-    const v = c.verifications[0];
+  if (v) {
+    const vMethod = v.paymentMethod || (v.screenshotUrl ? 'ONLINE' : 'CASH');
     result.verification = {
       id: v.id,
       status: v.status,
-      screenshotUrl: `/payment-verifications/${v.id}/screenshot`, // relative to the API base URL
+      paymentMethod: vMethod,
+      screenshotUrl: v.screenshotUrl ? `/payment-verifications/${v.id}/screenshot` : null,
       submittedByRole: v.submittedByRole,
       submittedAt: v.submittedAt,
       paymentDate: v.paymentDate ? toDateString(v.paymentDate) : null,
@@ -198,6 +203,7 @@ async function markUnpaid(id) {
             status: 'UNPAID',
             paidAt: null,
             paymentDate: null,
+            paymentMethod: null,
             fineAmount: 0,
             totalPaidAmount: null,
           },

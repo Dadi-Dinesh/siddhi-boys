@@ -1,12 +1,14 @@
 import api from './api'
 
-// Member submits payment screenshot
-export async function submitPaymentVerification({ contributionId, file, paymentDate, note }) {
+// Member submits payment verification (Online screenshot or Cash)
+export async function submitPaymentVerification({ contributionId, paymentMethod = 'ONLINE', file, paymentDate, note, includeFine }) {
   const formData = new FormData()
   formData.append('contributionId', contributionId)
-  formData.append('screenshot', file)
+  formData.append('paymentMethod', paymentMethod)
+  if (file) formData.append('screenshot', file)
   if (paymentDate) formData.append('paymentDate', paymentDate)
   if (note) formData.append('note', note)
+  if (includeFine !== undefined) formData.append('includeFine', String(includeFine))
 
   const { data } = await api.post('/payment-verifications', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
@@ -14,12 +16,14 @@ export async function submitPaymentVerification({ contributionId, file, paymentD
   return data.data
 }
 
-// Admin marks contribution as paid with mandatory screenshot upload
-export async function adminMarkPaidWithScreenshot({ contributionId, file, paymentDate, note }) {
+// Admin marks contribution as paid (Online with screenshot or Cash directly)
+export async function adminMarkPaidWithScreenshot({ contributionId, paymentMethod = 'ONLINE', file, paymentDate, note, includeFine }) {
   const formData = new FormData()
-  formData.append('screenshot', file)
+  formData.append('paymentMethod', paymentMethod)
+  if (file) formData.append('screenshot', file)
   if (paymentDate) formData.append('paymentDate', paymentDate)
   if (note) formData.append('note', note)
+  if (includeFine !== undefined) formData.append('includeFine', String(includeFine))
 
   const { data } = await api.patch(`/contributions/${contributionId}/pay`, formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
@@ -33,9 +37,11 @@ export async function listVerifications(params = {}) {
   return data.data
 }
 
-// Admin: accept verification
-export async function acceptVerification(id) {
-  const { data } = await api.patch(`/admin/payment-verifications/${id}/accept`)
+// Admin: accept verification (with optional fine override)
+export async function acceptVerification(id, { includeFine } = {}) {
+  const { data } = await api.patch(`/admin/payment-verifications/${id}/accept`, {
+    ...(includeFine !== undefined ? { includeFine } : {}),
+  })
   return data.data
 }
 

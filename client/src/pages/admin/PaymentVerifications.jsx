@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { CheckCircle2, Clock, Eye, ShieldCheck, XCircle } from 'lucide-react'
+import { Banknote, CheckCircle2, Clock, CreditCard, Eye, ShieldCheck, XCircle } from 'lucide-react'
 import { acceptVerification, declineVerification, listVerifications } from '../../services/paymentVerificationService'
 import { getErrorMessage } from '../../services/api'
 import { formatDate, formatRupees } from '../../utils/format'
@@ -29,6 +29,7 @@ export default function PaymentVerifications() {
   // Modals state
   const [previewItem, setPreviewItem] = useState(null)
   const [acceptItem, setAcceptItem] = useState(null)
+  const [acceptIncludeFine, setAcceptIncludeFine] = useState(false)
   const [declineItem, setDeclineItem] = useState(null)
   const [rejectionReason, setRejectionReason] = useState('')
   const [actionLoading, setActionLoading] = useState(false)
@@ -55,12 +56,21 @@ export default function PaymentVerifications() {
     setRefreshing(false)
   }
 
+  function handleOpenAccept(item) {
+    setAcceptItem(item)
+    setAcceptIncludeFine(Number(item.fineAmount || 0) > 0)
+  }
+
   async function handleConfirmAccept() {
     if (!acceptItem) return
     setActionLoading(true)
     try {
-      await acceptVerification(acceptItem.id)
-      setFlash({ variant: 'success', text: `Payment verified for ${acceptItem.contribution?.member?.name || 'member'}.` })
+      await acceptVerification(acceptItem.id, { includeFine: acceptIncludeFine })
+      const isCash = acceptItem.paymentMethod === 'CASH'
+      setFlash({
+        variant: 'success',
+        text: `${isCash ? 'Cash payment' : 'Payment'} verified for ${acceptItem.contribution?.member?.name || 'member'}.`,
+      })
       setAcceptItem(null)
       await loadData()
     } catch (err) {
@@ -98,7 +108,7 @@ export default function PaymentVerifications() {
       <PageHeader
         documentTitle="Payment Verifications"
         title="Payment Verifications"
-        subtitle="Review and verify member payment screenshots"
+        subtitle="Review and verify member payment screenshots and cash payments"
         actions={<RefreshButton onClick={handleRefresh} refreshing={refreshing} disabled={status === 'loading'} />}
       />
 
@@ -179,6 +189,7 @@ export default function PaymentVerifications() {
                     <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
                       <th scope="col" className="py-3 pr-3 font-medium">Member</th>
                       <th scope="col" className="px-3 py-3 font-medium">Month</th>
+                      <th scope="col" className="px-3 py-3 font-medium">Method</th>
                       <th scope="col" className="px-3 py-3 text-right font-medium">Base</th>
                       <th scope="col" className="px-3 py-3 text-right font-medium">Fine</th>
                       <th scope="col" className="px-3 py-3 text-right font-medium">Total Paid</th>
@@ -192,6 +203,7 @@ export default function PaymentVerifications() {
                       const memberName = item.contribution?.member?.name || 'Unknown'
                       const memberEmail = item.contribution?.member?.email || ''
                       const isPending = item.status === 'PENDING'
+                      const isCash = item.paymentMethod === 'CASH'
                       const baseAmount = item.contribution ? Number(item.contribution.amount) : 0
                       const fineAmount = Number(item.fineAmount || 0)
                       const totalAmount = item.totalAmount !== null && item.totalAmount !== undefined
@@ -206,6 +218,18 @@ export default function PaymentVerifications() {
                           </td>
                           <td className="px-3 py-3 text-slate-800 font-medium">
                             {item.contribution?.label || '—'}
+                          </td>
+                          <td className="px-3 py-3">
+                            <span
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                                isCash
+                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/70'
+                                  : 'bg-blue-50 text-blue-700 border border-blue-200/70'
+                              }`}
+                            >
+                              {isCash ? <Banknote size={13} /> : <CreditCard size={13} />}
+                              {isCash ? 'Cash' : 'Online'}
+                            </span>
                           </td>
                           <td className="px-3 py-3 text-right tabular-nums text-slate-700">
                             {formatRupees(baseAmount)}
@@ -236,21 +260,28 @@ export default function PaymentVerifications() {
                           </td>
                           <td className="py-3 pl-3 text-right">
                             <div className="flex items-center justify-end gap-2">
-                              <Button
-                                size="sm"
-                                variant="secondary"
-                                onClick={() => setPreviewItem(item)}
-                                title="View screenshot"
-                              >
-                                <Eye size={14} aria-hidden="true" />
-                                Screenshot
-                              </Button>
+                              {item.screenshotUrl ? (
+                                <Button
+                                  size="sm"
+                                  variant="secondary"
+                                  onClick={() => setPreviewItem(item)}
+                                  title="View screenshot"
+                                >
+                                  <Eye size={14} aria-hidden="true" />
+                                  Screenshot
+                                </Button>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-xs text-emerald-800 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-200/60 font-medium">
+                                  <Banknote size={12} />
+                                  No proof needed
+                                </span>
+                              )}
 
                               {isPending && (
                                 <>
                                   <Button
                                     size="sm"
-                                    onClick={() => setAcceptItem(item)}
+                                    onClick={() => handleOpenAccept(item)}
                                     className="bg-emerald-600 hover:bg-emerald-700 text-white"
                                   >
                                     Accept
@@ -281,6 +312,7 @@ export default function PaymentVerifications() {
                 {filteredItems.map((item) => {
                   const memberName = item.contribution?.member?.name || 'Unknown'
                   const isPending = item.status === 'PENDING'
+                  const isCash = item.paymentMethod === 'CASH'
                   const baseAmount = item.contribution ? Number(item.contribution.amount) : 0
                   const fineAmount = Number(item.fineAmount || 0)
                   const totalAmount = item.totalAmount !== null && item.totalAmount !== undefined
@@ -293,7 +325,7 @@ export default function PaymentVerifications() {
                         <div>
                           <p className="font-semibold text-slate-900">{memberName}</p>
                           <p className="text-xs text-slate-500">
-                            {item.contribution?.label} · Payment Date: {item.paymentDate ? formatDate(item.paymentDate) : formatDate(item.submittedAt)}
+                            {item.contribution?.label} · {isCash ? '💵 Cash' : '💳 Online'} · {item.paymentDate ? formatDate(item.paymentDate) : formatDate(item.submittedAt)}
                           </p>
                         </div>
                         <div className="text-right">
@@ -316,6 +348,13 @@ export default function PaymentVerifications() {
                         <span className="font-bold text-slate-900">Total: {formatRupees(totalAmount)}</span>
                       </div>
 
+                      {isCash && !item.screenshotUrl && (
+                        <div className="flex items-center gap-1.5 text-xs text-emerald-800 bg-emerald-50/70 p-2 rounded-lg border border-emerald-100">
+                          <Banknote size={15} className="shrink-0 text-emerald-700" />
+                          <span>Cash payment (no screenshot proof required)</span>
+                        </div>
+                      )}
+
                       {item.note && (
                         <p className="text-xs text-slate-600 bg-slate-50 rounded-lg p-2 italic">
                           Note: &quot;{item.note}&quot;
@@ -329,20 +368,22 @@ export default function PaymentVerifications() {
                       )}
 
                       <div className="flex flex-wrap items-center gap-2 pt-1">
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          onClick={() => setPreviewItem(item)}
-                          className="flex-1"
-                        >
-                          <Eye size={14} aria-hidden="true" />
-                          View Screenshot
-                        </Button>
+                        {item.screenshotUrl && (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => setPreviewItem(item)}
+                            className="flex-1"
+                          >
+                            <Eye size={14} aria-hidden="true" />
+                            View Screenshot
+                          </Button>
+                        )}
                         {isPending && (
                           <>
                             <Button
                               size="sm"
-                              onClick={() => setAcceptItem(item)}
+                              onClick={() => handleOpenAccept(item)}
                               className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
                             >
                               Accept
@@ -376,7 +417,7 @@ export default function PaymentVerifications() {
         onClose={() => setPreviewItem(null)}
         imageUrl={previewItem?.screenshotUrl}
         title={`Payment: ${previewItem?.contribution?.member?.name || 'Member'}`}
-        subtitle={`${previewItem?.contribution?.label || ''} · Total: ${
+        subtitle={`${previewItem?.contribution?.label || ''} · ${
           previewItem ? formatRupees(previewItem.totalAmount || previewItem.contribution?.amount) : ''
         } · Payment Date: ${previewItem?.paymentDate ? formatDate(previewItem.paymentDate) : (previewItem ? formatDate(previewItem.submittedAt) : '')}`}
       />
@@ -384,45 +425,80 @@ export default function PaymentVerifications() {
       {/* Accept Confirmation Dialog */}
       <ConfirmDialog
         open={Boolean(acceptItem)}
-        title="Accept payment verification?"
-        confirmLabel="Accept & Mark Paid"
+        title={acceptItem?.paymentMethod === 'CASH' ? 'Accept cash payment?' : 'Accept payment verification?'}
+        confirmLabel={acceptItem?.paymentMethod === 'CASH' ? 'Accept Cash & Mark Paid' : 'Accept & Mark Paid'}
         loading={actionLoading}
         loadingText="Accepting..."
         onConfirm={handleConfirmAccept}
         onCancel={() => setAcceptItem(null)}
       >
-        {acceptItem && (
-          <div className="space-y-3 text-sm text-slate-600">
-            <p>
-              Confirm accepting payment verification for{' '}
-              <strong className="text-slate-900">{acceptItem.contribution?.member?.name}</strong> for{' '}
-              <strong className="text-slate-900">{acceptItem.contribution?.label}</strong>:
-            </p>
-            <div className="rounded-lg bg-slate-50 p-3 text-xs border border-slate-200/80 space-y-1.5">
-              <div className="flex justify-between">
-                <span className="text-slate-500">Base Contribution:</span>
-                <span className="font-semibold text-slate-900">{formatRupees(acceptItem.contribution?.amount)}</span>
+        {acceptItem && (() => {
+          const acceptBase = Number(acceptItem.contribution?.amount || 0)
+          const acceptLateFineRate = Number(acceptItem.contribution?.lateFine ?? 20)
+          const memberIncludedFine = Number(acceptItem.fineAmount || 0) > 0
+          const acceptFinalFine = acceptIncludeFine ? acceptLateFineRate : 0
+          const acceptFinalTotal = acceptBase + acceptFinalFine
+
+          return (
+            <div className="space-y-3 text-sm text-slate-600">
+              <p>
+                Confirm accepting {acceptItem.paymentMethod === 'CASH' ? 'cash payment' : 'payment verification'} for{' '}
+                <strong className="text-slate-900">{acceptItem.contribution?.member?.name}</strong> for{' '}
+                <strong className="text-slate-900">{acceptItem.contribution?.label}</strong>:
+              </p>
+
+              {/* Late fine toggle checkbox */}
+              <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3">
+                <label className="flex items-start gap-2.5 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    id="admin-accept-fine-checkbox"
+                    checked={acceptIncludeFine}
+                    onChange={(e) => setAcceptIncludeFine(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 rounded border-amber-300 text-primary-600 focus:ring-primary-500 cursor-pointer"
+                  />
+                  <div className="text-xs">
+                    <span className="font-semibold text-amber-950 block text-sm">
+                      Include late fine of {formatRupees(acceptLateFineRate)}
+                    </span>
+                    <span className="text-amber-800 mt-0.5 block">
+                      Member {memberIncludedFine ? 'marked late fine in submission (+₹' + acceptLateFineRate + ')' : 'did not include late fine'}.
+                      You can check or uncheck to decide whether to add the late fine to the total.
+                    </span>
+                  </div>
+                </label>
               </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Late Fine:</span>
-                <span className={`font-semibold ${Number(acceptItem.fineAmount || 0) > 0 ? 'text-amber-700' : 'text-slate-700'}`}>
-                  {formatRupees(acceptItem.fineAmount || 0)}
-                </span>
+
+              <div className="rounded-lg bg-slate-50 p-3 text-xs border border-slate-200/80 space-y-1.5">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Payment Method:</span>
+                  <span className="font-semibold text-slate-900">{acceptItem.paymentMethod === 'CASH' ? '💵 Cash' : '💳 Online'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Base Contribution:</span>
+                  <span className="font-semibold text-slate-900">{formatRupees(acceptBase)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Late Fine:</span>
+                  <span className={`font-semibold ${acceptFinalFine > 0 ? 'text-amber-700' : 'text-slate-700'}`}>
+                    {acceptFinalFine > 0 ? `+${formatRupees(acceptFinalFine)}` : '₹0 (Waived)'}
+                  </span>
+                </div>
+                <div className="flex justify-between pt-1.5 border-t border-slate-200 font-bold text-slate-900">
+                  <span>Total Collected:</span>
+                  <span className="text-emerald-700 text-sm">{formatRupees(acceptFinalTotal)}</span>
+                </div>
+                <div className="flex justify-between pt-1 text-[11px] text-slate-500">
+                  <span>Payment Date:</span>
+                  <span className="font-medium text-slate-700">{acceptItem.paymentDate ? formatDate(acceptItem.paymentDate) : formatDate(acceptItem.submittedAt)}</span>
+                </div>
               </div>
-              <div className="flex justify-between pt-1.5 border-t border-slate-200 font-bold text-slate-900">
-                <span>Total Collected:</span>
-                <span className="text-emerald-700">{formatRupees(acceptItem.totalAmount || acceptItem.contribution?.amount)}</span>
-              </div>
-              <div className="flex justify-between pt-1 text-[11px] text-slate-500">
-                <span>Payment Date:</span>
-                <span className="font-medium text-slate-700">{acceptItem.paymentDate ? formatDate(acceptItem.paymentDate) : formatDate(acceptItem.submittedAt)}</span>
-              </div>
+              <p className="text-xs text-slate-500">
+                This will mark the contribution as <strong className="text-emerald-700">PAID</strong> and add <strong className="text-slate-900">{formatRupees(acceptFinalTotal)}</strong> to the group fund collection.
+              </p>
             </div>
-            <p className="text-xs text-slate-500">
-              This will mark the contribution as <strong className="text-emerald-700">PAID</strong> and add <strong className="text-slate-900">{formatRupees(acceptItem.totalAmount || acceptItem.contribution?.amount)}</strong> to the group fund collection.
-            </p>
-          </div>
-        )}
+          )
+        })()}
       </ConfirmDialog>
 
       {/* Decline Confirmation Dialog */}
@@ -447,11 +523,11 @@ export default function PaymentVerifications() {
               <strong className="text-slate-900">{declineItem.contribution?.label}</strong>?
             </p>
             <p className="text-xs text-slate-500">
-              The contribution will remain <strong className="text-amber-700">UNPAID</strong>. The member will be notified and can submit a new screenshot.
+              The contribution will remain <strong className="text-amber-700">UNPAID</strong>. The member will be notified and can submit again.
             </p>
             <Input
               label="Reason for decline (optional)"
-              placeholder="e.g. UTR number not matching, illegible screenshot"
+              placeholder={declineItem.paymentMethod === 'CASH' ? 'e.g. Cash not received yet' : 'e.g. UTR number not matching, illegible screenshot'}
               value={rejectionReason}
               onChange={(e) => setRejectionReason(e.target.value)}
               maxLength={200}

@@ -12,12 +12,14 @@ const {
 const { uploadScreenshotToCloudinary, fetchScreenshot } = require('../utils/upload');
 
 function formatVerification(v) {
+  const method = v.paymentMethod || (v.screenshotUrl ? 'ONLINE' : 'CASH');
   const result = {
     id: v.id,
     contributionId: v.contributionId,
     status: v.status,
-    // Path relative to the API base URL. The real Cloudinary URL never leaves the server.
-    screenshotUrl: `/payment-verifications/${v.id}/screenshot`,
+    paymentMethod: method,
+    // Path relative to the API base URL if screenshot exists, or null for cash payments.
+    screenshotUrl: v.screenshotUrl ? `/payment-verifications/${v.id}/screenshot` : null,
     note: v.note,
     rejectionReason: v.rejectionReason,
     submittedByRole: v.submittedByRole,
@@ -65,6 +67,7 @@ function formatVerification(v) {
       lateFine: toMoney(v.contribution.lateFine ?? 20),
       fineAmount,
       totalPaidAmount,
+      paymentMethod: v.contribution.paymentMethod || method,
       paymentDate: v.paymentDate ? toDateString(v.paymentDate) : (v.contribution.paymentDate ? toDateString(v.contribution.paymentDate) : null),
       paymentDateLabel: v.paymentDate ? formatDateLabel(v.paymentDate) : (v.contribution.paymentDate ? formatDateLabel(v.contribution.paymentDate) : null),
       status: v.contribution.status,
@@ -82,9 +85,12 @@ function formatVerification(v) {
   return result;
 }
 
-// Member submits a payment verification screenshot for an UNPAID contribution.
-async function submitMemberVerification({ contributionId, userId, userRole, file, paymentDate, note }) {
-  if (!file) throw new AppError('Payment screenshot is required', 400);
+// Member submits a payment verification screenshot (ONLINE) or cash declaration (CASH) for an UNPAID contribution.
+async function submitMemberVerification({ contributionId, userId, userRole, file, paymentDate, note, paymentMethod = 'ONLINE', includeFine = false }) {
+  const method = validate.oneOf(paymentMethod || 'ONLINE', 'Payment method', ['ONLINE', 'CASH']);
+  if (method === 'ONLINE' && !file) {
+    throw new AppError('Payment screenshot is required for online payments', 400);
+  }
   validate.id(contributionId, 'Contribution');
   const payDate = validate.paymentDate(paymentDate, 'Payment date');
   const payDateStr = toDateString(payDate);
@@ -117,21 +123,25 @@ async function submitMemberVerification({ contributionId, userId, userRole, file
     throw new AppError('A payment verification is already pending review for this month', 409);
   }
 
-  // Calculate late fine based on actual payment date vs due date
+  // Calculate late fine based on actual payment date vs due date and whether fine checkbox is ticked
   const dueDateStr = toDateString(contribution.dueDate || calculateDueDate(contribution.year, contribution.month, 10));
   const isLate = isLatePayment(payDateStr, dueDateStr);
+  const shouldApplyFine = isLate && (includeFine === true || includeFine === 'true' || includeFine === 1 || includeFine === '1');
   const baseVal = toDecimal(contribution.amount);
-  const fineVal = isLate ? toDecimal(contribution.lateFine ?? 20) : ZERO;
+  const fineVal = shouldApplyFine ? toDecimal(contribution.lateFine ?? 20) : ZERO;
   const totalVal = baseVal.plus(fineVal);
 
-  // Upload only after every check has passed, so rejected requests leave no files behind.
-  const screenshotUrl = await uploadScreenshotToCloudinary(file);
+  let screenshotUrl = null;
+  if (method === 'ONLINE' && file) {
+    screenshotUrl = await uploadScreenshotToCloudinary(file);
+  }
 
   const verification = await prisma.paymentVerification.create({
     data: {
       contributionId,
       submittedById: userId,
       submittedByRole: userRole,
+      paymentMethod: method,
       screenshotUrl,
       status: 'PENDING',
       paymentDate: payDate,
@@ -150,16 +160,23 @@ async function submitMemberVerification({ contributionId, userId, userRole, file
   return formatVerification(verification);
 }
 
-// Admin manually marks a contribution as PAID with a required screenshot.
-async function adminMarkPaidWithScreenshot({ contributionId, adminUserId, file, paymentDate, note }) {
-  if (!file) throw new AppError('Payment screenshot is required to mark contribution as paid', 400);
+// Admin manually marks a contribution as PAID with screenshot (ONLINE) or directly (CASH).
+async function adminMarkPaidWithScreenshot({ contributionId, adminUserId, file, paymentDate, note, paymentMethod = 'ONLINE', includeFine = false }) {
+  const method = validate.oneOf(paymentMethod || 'ONLINE', 'Payment method', ['ONLINE', 'CASH']);
+  if (method === 'ONLINE' && !file) {
+    throw new AppError('Payment screenshot is required for online payments', 400);
+  }
   validate.id(contributionId, 'Contribution');
   const payDate = validate.paymentDate(paymentDate, 'Payment date');
   const payDateStr = toDateString(payDate);
 
   const existing = await prisma.monthlyContribution.findUnique({ where: { id: contributionId }, select: { id: true } });
   if (!existing) throw new AppError('Contribution not found', 404);
-  const screenshotUrl = await uploadScreenshotToCloudinary(file);
+
+  let screenshotUrl = null;
+  if (method === 'ONLINE' && file) {
+    screenshotUrl = await uploadScreenshotToCloudinary(file);
+  }
 
   return prisma.$transaction(async (tx) => {
     const contribution = await tx.monthlyContribution.findUnique({
@@ -171,11 +188,12 @@ async function adminMarkPaidWithScreenshot({ contributionId, adminUserId, file, 
 
     const now = new Date();
 
-    // Calculate late fine based on actual payment date vs due date
+    // Calculate late fine based on actual payment date vs due date and whether fine was applied
     const dueDateStr = toDateString(contribution.dueDate || calculateDueDate(contribution.year, contribution.month, 10));
     const isLate = isLatePayment(payDateStr, dueDateStr);
+    const shouldApplyFine = isLate && (includeFine === true || includeFine === 'true' || includeFine === 1 || includeFine === '1');
     const baseVal = toDecimal(contribution.amount);
-    const fineVal = isLate ? toDecimal(contribution.lateFine ?? 20) : ZERO;
+    const fineVal = shouldApplyFine ? toDecimal(contribution.lateFine ?? 20) : ZERO;
     const totalVal = baseVal.plus(fineVal);
 
     // Create an ACCEPTED verification record
@@ -184,6 +202,7 @@ async function adminMarkPaidWithScreenshot({ contributionId, adminUserId, file, 
         contributionId,
         submittedById: adminUserId,
         submittedByRole: 'ADMIN',
+        paymentMethod: method,
         screenshotUrl,
         status: 'ACCEPTED',
         reviewedById: adminUserId,
@@ -191,7 +210,7 @@ async function adminMarkPaidWithScreenshot({ contributionId, adminUserId, file, 
         paymentDate: payDate,
         fineAmount: fineVal,
         totalAmount: totalVal,
-        note: note ? String(note).trim().slice(0, 500) : 'Recorded by Admin',
+        note: note ? String(note).trim().slice(0, 500) : (method === 'CASH' ? 'Cash payment recorded by Admin' : 'Recorded by Admin'),
       },
       include: {
         submittedBy: { select: { id: true, name: true, role: true } },
@@ -199,13 +218,14 @@ async function adminMarkPaidWithScreenshot({ contributionId, adminUserId, file, 
       },
     });
 
-    // Update contribution to PAID with fineAmount, totalPaidAmount, and paymentDate
+    // Update contribution to PAID with fineAmount, totalPaidAmount, paymentDate, and paymentMethod
     const updatedContribution = await tx.monthlyContribution.update({
       where: { id: contributionId },
       data: {
         status: 'PAID',
         paidAt: contribution.paidAt || now,
         paymentDate: payDate,
+        paymentMethod: method,
         fineAmount: fineVal,
         totalPaidAmount: totalVal,
       },
@@ -218,13 +238,13 @@ async function adminMarkPaidWithScreenshot({ contributionId, adminUserId, file, 
     return {
       contribution: formatContribution(updatedContribution),
       verification: formatVerification(verification),
-      message: 'Marked as paid with verification screenshot',
+      message: method === 'CASH' ? 'Marked as paid in cash' : 'Marked as paid with verification screenshot',
     };
   }, { maxWait: 10000, timeout: 20000 });
 }
 
 // Admin accepts a pending verification request.
-async function acceptVerification(id, adminUserId) {
+async function acceptVerification(id, adminUserId, options = {}) {
   validate.id(id, 'Verification');
 
   return prisma.$transaction(async (tx) => {
@@ -240,15 +260,26 @@ async function acceptVerification(id, adminUserId) {
 
     const now = new Date();
 
-    // 1. Mark contribution PAID with verification's paymentDate, fineAmount, and totalAmount
+    let fineVal = toDecimal(verification.fineAmount || 0);
+    let totalVal = toDecimal(verification.totalAmount || verification.contribution.amount);
+
+    // If admin explicitly specified an includeFine override in accept request
+    if (options.includeFine !== undefined && options.includeFine !== null) {
+      const applyFine = options.includeFine === true || options.includeFine === 'true' || options.includeFine === 1 || options.includeFine === '1';
+      fineVal = applyFine ? toDecimal(verification.contribution.lateFine ?? 20) : ZERO;
+      totalVal = toDecimal(verification.contribution.amount).plus(fineVal);
+    }
+
+    // 1. Mark contribution PAID with verification's paymentDate, fineAmount, totalAmount, and paymentMethod
     await tx.monthlyContribution.update({
       where: { id: verification.contributionId },
       data: {
         status: 'PAID',
         paidAt: now,
         paymentDate: verification.paymentDate,
-        fineAmount: verification.fineAmount || 0,
-        totalPaidAmount: verification.totalAmount,
+        paymentMethod: verification.paymentMethod || 'ONLINE',
+        fineAmount: fineVal,
+        totalPaidAmount: totalVal,
       },
     });
 
@@ -259,6 +290,8 @@ async function acceptVerification(id, adminUserId) {
         status: 'ACCEPTED',
         reviewedById: adminUserId,
         reviewedAt: now,
+        fineAmount: fineVal,
+        totalAmount: totalVal,
       },
       include: {
         contribution: {
@@ -350,6 +383,7 @@ async function getScreenshot(id) {
   });
 
   if (!verification) throw new AppError('Payment verification not found', 404);
+  if (!verification.screenshotUrl) throw new AppError('No screenshot available for cash payment verification', 404);
 
   return fetchScreenshot(verification.screenshotUrl);
 }
